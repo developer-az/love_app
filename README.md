@@ -1,4 +1,4 @@
-# Our Special Moments App
+# Love App
 
 A beautiful Flutter app to cherish and reconnect through shared memories.
 
