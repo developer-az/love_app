@@ -225,11 +225,28 @@ test/
 - `pubspec.yaml`: Dependencies and assets - run `flutter pub get` after changes
 - `analysis_options.yaml`: Linting rules - affects `flutter analyze` output
 - Platform directories (`android/`, `ios/`, etc.): Platform-specific configurations
+- `setup.ps1`: Windows PowerShell script to download Poppins font files
 
 ### Assets and Resources
-- `assets/fonts/`: Custom fonts (populated by setup.ps1 on Windows)
-- `assets/images/`: App images and icons
+```bash
+# Create required asset directories (ALWAYS run this first)
+mkdir -p assets/fonts assets/images assets/icons
+
+# On Windows - Run PowerShell setup script to download fonts
+powershell ./setup.ps1
+# Downloads: Poppins-Regular.ttf, Poppins-Medium.ttf, Poppins-SemiBold.ttf, Poppins-Bold.ttf
+
+# On Linux/macOS - Manually download fonts if needed:
+curl -o assets/fonts/Poppins-Regular.ttf https://github.com/google/fonts/raw/main/ofl/poppins/Poppins-Regular.ttf
+# Repeat for other font weights as needed
+```
+
+Asset structure after setup:
+- `assets/fonts/`: Poppins font family (downloaded by setup.ps1)
+- `assets/images/`: App images and user photos  
+- `assets/icons/`: App icons and UI elements
 - `web/manifest.json`: PWA configuration for web builds
+- `web/icons/`: Web app icons (Icon-192.png, Icon-512.png, etc.)
 
 ## Common Development Workflows
 
@@ -260,6 +277,31 @@ flutter pub get --timeout 300          # After updating pubspec.yaml
 flutter pub upgrade --timeout 300      # To upgrade to latest versions
 ```
 
+## Troubleshooting Common Issues
+
+### Setup and Installation Issues
+- **"flutter: command not found"**: Add Flutter/bin to PATH environment variable and restart terminal
+- **"Blocked by DNS monitoring proxy"**: Network restrictions - try alternative install methods or work offline
+- **Dart SDK download failures**: Delete cache folder and retry: `rm -rf ~/.flutter/bin/cache`
+
+### Build and Run Issues
+- **Gradle build failures**: Check `android/gradle.properties` memory settings (already configured for 8GB)
+- **"Hot reload not available"**: Stop with `q` and restart with `flutter run`
+- **Asset not found errors**: Ensure assets directories exist and run setup.ps1 on Windows
+- **"flutter build" hangs**: NEVER CANCEL - builds can take 15+ minutes, use long timeouts
+- **Version conflicts**: Run `flutter clean && flutter pub get` to reset build state
+
+### Runtime Issues
+- **Images not loading**: Check network connectivity and image URL validity
+- **Data not persisting**: Verify SharedPreferences is being awaited properly in MemoryService
+- **UI layout issues**: Check responsive design with different screen sizes/orientations
+- **Navigation errors**: Ensure all screen widgets are properly imported and constructed
+
+### Testing Issues
+- **"SharedPreferences not found in tests"**: Use `SharedPreferences.setMockInitialValues({})` before tests
+- **Widget tests timing out**: Increase timeout and ensure async operations are properly awaited
+- **Test database isolation**: Each test should start with fresh SharedPreferences mock data
+
 ## Time Expectations
 **Set appropriate timeouts for all operations - builds may be slow:**
 
@@ -274,6 +316,20 @@ flutter pub upgrade --timeout 300      # To upgrade to latest versions
 
 **NEVER CANCEL long-running operations** - they will complete given enough time.
 
+## Build Outputs and Locations
+**Know where to find build artifacts:**
+- Web: `build/web/` - Contains index.html and assets for hosting
+- Android APK: `build/app/outputs/flutter-apk/app-release.apk`
+- Android Bundle: `build/app/outputs/bundle/release/app-release.aab`
+- Linux: `build/linux/x64/release/bundle/my_special_app`
+- Windows: `build/windows/x64/runner/Release/my_special_app.exe`
+- macOS: `build/macos/Build/Products/Release/my_special_app.app`
+
+**Log and Debug Files:**
+- Flutter logs: Check terminal output during `flutter run`
+- Crash logs: Platform-specific locations (e.g., Android logcat)
+- Build errors: Usually shown in terminal with file/line numbers
+
 ## Dependencies Summary
 Key packages in use (check pubspec.yaml for versions):
 - `shared_preferences`: Local data storage
@@ -281,5 +337,8 @@ Key packages in use (check pubspec.yaml for versions):
 - `cupertino_icons`: iOS-style icons
 - `flutter_test`: Testing framework
 - `flutter_lints`: Code quality rules
+
+**Development dependencies:**
+- `flutter_lints ^5.0.0`: Enforces code quality standards
 
 Always run `flutter pub get` after modifying pubspec.yaml dependencies.
