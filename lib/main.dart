@@ -5,6 +5,8 @@ import 'package:my_special_app/models/memory.dart';
 import 'package:my_special_app/services/memory_service.dart';
 import 'package:my_special_app/screens/add_memory_screen.dart';
 import 'package:my_special_app/screens/memory_detail_screen.dart';
+import 'package:my_special_app/screens/stats_screen.dart';
+import 'package:my_special_app/widgets/premium_components.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
@@ -43,7 +45,9 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   List<Memory> _memories = [];
+  List<Memory> _filteredMemories = [];
   bool _isLoading = true;
+  String _searchQuery = '';
 
   @override
   void initState() {
@@ -57,7 +61,23 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     final memories = await widget.memoryService.getMemories();
     setState(() {
       _memories = memories;
+      _filteredMemories = memories;
       _isLoading = false;
+    });
+  }
+
+  void _filterMemories(String query) {
+    setState(() {
+      _searchQuery = query;
+      if (query.isEmpty) {
+        _filteredMemories = _memories;
+      } else {
+        _filteredMemories = _memories.where((memory) {
+          return memory.title.toLowerCase().contains(query.toLowerCase()) ||
+                 memory.description.toLowerCase().contains(query.toLowerCase()) ||
+                 memory.location.toLowerCase().contains(query.toLowerCase());
+        }).toList();
+      }
     });
   }
 
@@ -72,6 +92,46 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
         backgroundColor: Colors.transparent,
         elevation: 0,
+        actions: [
+          Container(
+            margin: const EdgeInsets.only(right: 16),
+            decoration: BoxDecoration(
+              color: Colors.white.withOpacity(0.9),
+              borderRadius: BorderRadius.circular(12),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.1),
+                  blurRadius: 8,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: IconButton(
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  PageRouteBuilder(
+                    pageBuilder: (context, animation, secondaryAnimation) =>
+                        StatsScreen(memoryService: widget.memoryService),
+                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                      return SlideTransition(
+                        position: animation.drive(
+                          Tween(begin: const Offset(1.0, 0.0), end: Offset.zero),
+                        ),
+                        child: child,
+                      );
+                    },
+                  ),
+                );
+              },
+              icon: Icon(
+                Icons.analytics,
+                color: AppTheme.primaryColor,
+              ),
+              tooltip: 'View Statistics',
+            ),
+          ),
+        ],
       ),
       body: Container(
         decoration: const BoxDecoration(
@@ -85,11 +145,25 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ),
         child: SafeArea(
-          child: _isLoading
-              ? _buildLoadingState()
-              : _memories.isEmpty
-                  ? _buildEmptyState()
-                  : _buildMemoriesGrid(),
+          child: Column(
+            children: [
+              // Search Bar
+              if (_memories.isNotEmpty)
+                PremiumComponents.searchBar(
+                  hintText: 'Search memories...',
+                  onChanged: _filterMemories,
+                ).animate().fadeIn(delay: const Duration(milliseconds: 200)),
+              
+              // Content
+              Expanded(
+                child: _isLoading
+                    ? _buildLoadingState()
+                    : _memories.isEmpty
+                        ? _buildEmptyState()
+                        : _buildMemoriesGrid(),
+              ),
+            ],
+          ),
         ),
       ),
       floatingActionButton: Container(
@@ -258,6 +332,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   }
 
   Widget _buildMemoriesGrid() {
+    final displayMemories = _filteredMemories;
+    
+    if (displayMemories.isEmpty && _searchQuery.isNotEmpty) {
+      return Center(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                color: AppTheme.primaryColor.withOpacity(0.1),
+                shape: BoxShape.circle,
+              ),
+              child: Icon(
+                Icons.search_off,
+                size: 50,
+                color: AppTheme.primaryColor,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Text(
+              'No memories found',
+              style: AppTheme.subheadingStyle,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Try searching with different keywords',
+              style: AppTheme.captionStyle,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ).animate().fadeIn();
+    }
+    
     return RefreshIndicator(
       onRefresh: _loadMemories,
       child: Padding(
@@ -266,9 +376,9 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           crossAxisCount: 2,
           crossAxisSpacing: 16,
           mainAxisSpacing: 16,
-          itemCount: _memories.length,
+          itemCount: displayMemories.length,
           itemBuilder: (context, index) {
-            final memory = _memories[index];
+            final memory = displayMemories[index];
             return PremiumMemoryCard(
               memory: memory,
               index: index,
