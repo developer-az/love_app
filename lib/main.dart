@@ -57,7 +57,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Future<void> _loadMemories() async {
     setState(() => _isLoading = true);
-    await Future.delayed(const Duration(milliseconds: 500)); // Simulate loading
     final memories = await widget.memoryService.getMemories();
     setState(() {
       _memories = memories;
