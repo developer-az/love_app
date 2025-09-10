@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:my_special_app/theme/app_theme.dart';
-import 'package:my_special_app/models/memory.dart';
-import 'package:my_special_app/services/memory_service.dart';
+import 'package:memories_app/theme/app_theme.dart';
+import 'package:memories_app/models/memory.dart';
+import 'package:memories_app/services/memory_service.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 
