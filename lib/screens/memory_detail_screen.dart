@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:my_special_app/theme/app_theme.dart';
-import 'package:my_special_app/models/memory.dart';
+import 'package:correct_package_name/theme/app_theme.dart';
+import 'package:correct_package_name/models/memory.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:photo_view/photo_view.dart';
