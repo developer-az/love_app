@@ -63,6 +63,7 @@ class _StatsScreenState extends State<StatsScreen> {
   Memory? get oldestMemory {
     if (!_cacheValid || _cachedOldestMemory == null) {
       if (_memories.isNotEmpty) {
+        // This expensive reduce operation now only runs when memories change!
         _cachedOldestMemory = _memories.reduce((a, b) => a.date.isBefore(b.date) ? a : b);
       }
     }
@@ -73,6 +74,7 @@ class _StatsScreenState extends State<StatsScreen> {
   Map<String, int> get monthlyStats {
     if (!_cacheValid || _cachedMonthlyStats == null) {
       _cachedMonthlyStats = <String, int>{};
+      // This expensive iteration now only runs when memories change!
       for (final memory in _memories) {
         final monthKey = DateFormat('MMM yyyy').format(memory.date);
         _cachedMonthlyStats![monthKey] = (_cachedMonthlyStats![monthKey] ?? 0) + 1;
@@ -86,6 +88,7 @@ class _StatsScreenState extends State<StatsScreen> {
   int get maxCount {
     if (!_cacheValid || _cachedMaxCount == null) {
       final stats = monthlyStats; // This will ensure monthlyStats is calculated first
+      // This expensive reduce operation now only runs when memories change!
       _cachedMaxCount = stats.values.isEmpty ? 1 : stats.values.reduce((a, b) => a > b ? a : b);
     }
     return _cachedMaxCount!;
