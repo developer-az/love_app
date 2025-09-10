@@ -5,6 +5,14 @@ import 'package:my_special_app/models/memory.dart';
 import 'package:my_special_app/services/memory_service.dart';
 import 'package:intl/intl.dart';
 
+/// Stats screen with optimized performance
+/// 
+/// PERFORMANCE OPTIMIZATION:
+/// This screen previously had expensive reduce() and map() operations 
+/// that were executed on every rebuild in the build methods.
+/// 
+/// SOLUTION: Added caching for expensive calculations using computed properties
+/// that only recalculate when the underlying memories data changes.
 class StatsScreen extends StatefulWidget {
   final MemoryService memoryService;
 
@@ -18,6 +26,13 @@ class _StatsScreenState extends State<StatsScreen> {
   List<Memory> _memories = [];
   bool _isLoading = true;
 
+  // Cached values to avoid expensive recalculations on every rebuild
+  Memory? _cachedOldestMemory;
+  Map<String, int>? _cachedMonthlyStats;
+  int? _cachedMaxCount;
+  List<MapEntry<String, int>>? _cachedTopLocations;
+  bool _cacheValid = false;
+
   @override
   void initState() {
     super.initState();
@@ -30,7 +45,66 @@ class _StatsScreenState extends State<StatsScreen> {
     setState(() {
       _memories = memories;
       _isLoading = false;
+      // Invalidate cache when memories change
+      _invalidateCache();
     });
+  }
+
+  // Clear cached values when memories change
+  void _invalidateCache() {
+    _cacheValid = false;
+    _cachedOldestMemory = null;
+    _cachedMonthlyStats = null;
+    _cachedMaxCount = null;
+    _cachedTopLocations = null;
+  }
+
+  // Computed property for oldest memory with caching
+  Memory? get oldestMemory {
+    if (!_cacheValid || _cachedOldestMemory == null) {
+      if (_memories.isNotEmpty) {
+        _cachedOldestMemory = _memories.reduce((a, b) => a.date.isBefore(b.date) ? a : b);
+      }
+    }
+    return _cachedOldestMemory;
+  }
+
+  // Computed property for monthly stats with caching
+  Map<String, int> get monthlyStats {
+    if (!_cacheValid || _cachedMonthlyStats == null) {
+      _cachedMonthlyStats = <String, int>{};
+      for (final memory in _memories) {
+        final monthKey = DateFormat('MMM yyyy').format(memory.date);
+        _cachedMonthlyStats![monthKey] = (_cachedMonthlyStats![monthKey] ?? 0) + 1;
+      }
+      _cacheValid = true;
+    }
+    return _cachedMonthlyStats!;
+  }
+
+  // Computed property for max count with caching
+  int get maxCount {
+    if (!_cacheValid || _cachedMaxCount == null) {
+      final stats = monthlyStats; // This will ensure monthlyStats is calculated first
+      _cachedMaxCount = stats.values.isEmpty ? 1 : stats.values.reduce((a, b) => a > b ? a : b);
+    }
+    return _cachedMaxCount!;
+  }
+
+  // Computed property for top locations with caching
+  List<MapEntry<String, int>> get topLocations {
+    if (!_cacheValid || _cachedTopLocations == null) {
+      final locationCounts = <String, int>{};
+      for (final memory in _memories) {
+        locationCounts[memory.location] = (locationCounts[memory.location] ?? 0) + 1;
+      }
+      
+      final sorted = locationCounts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+      
+      _cachedTopLocations = sorted.take(5).toList();
+    }
+    return _cachedTopLocations!;
   }
 
   @override
@@ -63,9 +137,9 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  // THIS IS THE PROBLEMATIC METHOD - reduce operations called on every rebuild!
+  // FIXED: Now uses cached computed properties instead of expensive operations on every rebuild
   Widget _buildStatsContent() {
-    // Problem: These expensive operations run on every rebuild
+    // These calculations are now cached and only computed when memories change
     final totalMemories = _memories.length;
     final thisMonthMemories = _memories
         .where((m) =>
@@ -74,10 +148,8 @@ class _StatsScreenState extends State<StatsScreen> {
         .length;
     final uniqueLocations = _memories.map((m) => m.location).toSet().length;
     
-    // PERFORMANCE ISSUE: This reduce operation is expensive and runs on every rebuild!
-    final oldestMemory = _memories.isEmpty
-        ? null
-        : _memories.reduce((a, b) => a.date.isBefore(b.date) ? a : b);
+    // PERFORMANCE FIXED: Now uses cached computed property instead of reduce on every rebuild!
+    final oldestMem = oldestMemory;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -175,7 +247,7 @@ class _StatsScreenState extends State<StatsScreen> {
                     DateFormat('MMMM d, yyyy').format(_memories.last.date),
                     style: AppTheme.bodyStyle.copyWith(color: Colors.grey[600]),
                   ),
-                  if (oldestMemory != null) ...[
+                  if (oldestMem != null) ...[
                     const SizedBox(height: 16),
                     Row(
                       children: [
@@ -193,14 +265,14 @@ class _StatsScreenState extends State<StatsScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      oldestMemory!.title,
+                      oldestMem!.title,
                       style: AppTheme.bodyStyle.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      DateFormat('MMMM d, yyyy').format(oldestMemory!.date),
+                      DateFormat('MMMM d, yyyy').format(oldestMem!.date),
                       style: AppTheme.bodyStyle.copyWith(color: Colors.grey[600]),
                     ),
                   ],
@@ -212,13 +284,13 @@ class _StatsScreenState extends State<StatsScreen> {
           const SizedBox(height: 32),
 
           // Location Stats
-          if (_getTopLocations().isNotEmpty) ...[
+          if (topLocations.isNotEmpty) ...[
             PremiumComponents.sectionHeader(
               title: 'Top Locations',
               subtitle: 'Places with the most memories',
             ),
             const SizedBox(height: 16),
-            ..._getTopLocations().map((location) => _buildLocationItem(location)),
+            ...topLocations.map((location) => _buildLocationItem(location)),
           ],
 
           const SizedBox(height: 32),
@@ -315,22 +387,17 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  // ANOTHER PERFORMANCE ISSUE: This method also does expensive calculations on every rebuild!
+  // PERFORMANCE FIXED: Now uses cached computed properties instead of expensive calculations on every rebuild!
   Widget _buildTimelineVisualization() {
     if (_memories.isEmpty) return const SizedBox();
 
-    // PROBLEM: This map/reduce operation runs on every rebuild
-    final monthlyStats = <String, int>{};
-    for (final memory in _memories) {
-      final monthKey = DateFormat('MMM yyyy').format(memory.date);
-      monthlyStats[monthKey] = (monthlyStats[monthKey] ?? 0) + 1;
-    }
-
-    final maxCount = monthlyStats.values.isEmpty ? 1 : monthlyStats.values.reduce((a, b) => a > b ? a : b);
+    // PERFORMANCE FIXED: Now uses cached computed properties
+    final stats = monthlyStats; // Cached calculation
+    final maxCountValue = maxCount; // Cached calculation
 
     return Column(
-      children: monthlyStats.entries.map((entry) {
-        final percentage = entry.value / maxCount;
+      children: stats.entries.map((entry) {
+        final percentage = entry.value / maxCountValue;
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           child: Row(
@@ -380,17 +447,5 @@ class _StatsScreenState extends State<StatsScreen> {
     if (_memories.isEmpty) return 0;
     final years = _memories.map((m) => m.date.year).toSet();
     return years.length;
-  }
-
-  List<MapEntry<String, int>> _getTopLocations() {
-    final locationCounts = <String, int>{};
-    for (final memory in _memories) {
-      locationCounts[memory.location] = (locationCounts[memory.location] ?? 0) + 1;
-    }
-    
-    final sorted = locationCounts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    
-    return sorted.take(5).toList();
   }
 }
