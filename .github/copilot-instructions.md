@@ -508,3 +508,38 @@ When network access becomes available, prioritize:
 3. `flutter analyze` - Code quality checks
 4. `flutter test` - Run test suite
 5. `flutter build web` - Build for immediate testing
+
+## Quick Reference Commands
+
+### ✅ ALWAYS WORKS (Network-Independent):
+```bash
+# Project setup
+mkdir -p assets/fonts assets/images assets/icons
+
+# Structure validation  
+ls -la lib/models/memory.dart lib/services/memory_service.dart lib/screens/ lib/theme/app_theme.dart test/
+find lib test -name "*.dart" | xargs wc -l
+
+# Code analysis
+grep -r "class.*Screen\|class.*Service\|class Memory" lib/
+grep -r "import.*my_special_app" lib/ | wc -l  
+cat pubspec.yaml | grep -A 4 "dependencies:"
+```
+
+### ⚠️ NETWORK DEPENDENT (May Fail in Constrained Environments):
+```bash
+# Installation & setup
+flutter doctor --timeout 300
+flutter pub get --timeout 300
+
+# Development
+flutter run -d chrome --timeout 900
+flutter analyze --timeout 120  
+flutter test --timeout 300
+
+# Building
+flutter build web --timeout 1800
+flutter build apk --timeout 1800
+```
+
+**RECOMMENDED**: Start with "ALWAYS WORKS" commands to validate project state, then attempt network-dependent operations.
