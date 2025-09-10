@@ -5,6 +5,7 @@ import 'package:my_special_app/models/memory.dart';
 import 'package:my_special_app/services/memory_service.dart';
 import 'package:my_special_app/screens/add_memory_screen.dart';
 import 'package:my_special_app/screens/memory_detail_screen.dart';
+import 'package:my_special_app/screens/stats_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -63,6 +64,20 @@ class _HomeScreenState extends State<HomeScreen> {
         title: const Text('Our Journey'),
         backgroundColor: AppTheme.primaryColor,
         foregroundColor: Colors.white,
+        actions: [
+          IconButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) => StatsScreen(memoryService: widget.memoryService),
+                ),
+              );
+            },
+            icon: const Icon(Icons.analytics),
+            tooltip: 'View Statistics',
+          ),
+        ],
       ),
       body: GridView.builder(
         padding: const EdgeInsets.all(16),
