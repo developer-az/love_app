@@ -192,7 +192,32 @@ class AppTheme {
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: primaryButtonStyle,
     ),
-    inputDecorationTheme: textFieldDecoration,
+    inputDecorationTheme: InputDecorationTheme(
+      filled: true,
+      fillColor: surfaceColor,
+      border: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      enabledBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide.none,
+      ),
+      focusedBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: primaryColor, width: 2),
+      ),
+      errorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.red, width: 1),
+      ),
+      focusedErrorBorder: OutlineInputBorder(
+        borderRadius: BorderRadius.circular(16),
+        borderSide: BorderSide(color: Colors.red, width: 2),
+      ),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
+      hintStyle: captionStyle.copyWith(color: textSecondary),
+    ),
     cardTheme: CardTheme(
       elevation: 0,
       shape: RoundedRectangleBorder(

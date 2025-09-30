@@ -1,5 +1,5 @@
 import 'package:flutter/material.dart';
-import 'package:love_app/theme/app_theme.dart';
+import 'package:my_special_app/theme/app_theme.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 /// Premium reusable components for the app
