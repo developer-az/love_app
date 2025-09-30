@@ -1,10 +1,8 @@
 {
   "version": 2,
   "name": "cherished-memories",
-  "framework": "flutter",
+  "buildCommand": "curl -o flutter_linux.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz && tar xf flutter_linux.tar.xz && export PATH=\"$PWD/flutter/bin:$PATH\" && flutter pub get && flutter build web --release --web-renderer html --base-href /",
   "outputDirectory": "build/web",
-  "installCommand": "curl -o flutter_linux.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz && tar xf flutter_linux.tar.xz && export PATH=\"$PWD/flutter/bin:$PATH\" && flutter pub get",
-  "buildCommand": "export PATH=\"$PWD/flutter/bin:$PATH\" && flutter build web --release --web-renderer html --base-href /",
   "rewrites": [
     {
       "source": "/(.*)",
