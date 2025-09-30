@@ -1,0 +1,51 @@
+# Vercel ignore file for Flutter web deployment
+
+# Flutter specific
+.dart_tool/
+.packages
+build/
+!build/web/
+.flutter-plugins
+.flutter-plugins-dependencies
+.metadata
+
+# Development files
+android/
+ios/
+linux/
+macos/
+windows/
+test/
+
+# IDE files
+.vscode/
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Logs
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# Other
+pubspec.lock
+analysis_options.yaml
+README.md
+setup.ps1

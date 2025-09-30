@@ -1,18 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:my_special_app/theme/app_theme.dart';
-import 'package:my_special_app/widgets/premium_components.dart';
-import 'package:my_special_app/models/memory.dart';
-import 'package:my_special_app/services/memory_service.dart';
+import '../theme/app_theme.dart';
+import '../widgets/premium_components.dart';
+import '../models/memory.dart';
+import '../services/memory_service.dart';
+import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 
-/// Stats screen with optimized performance
-/// 
-/// PERFORMANCE OPTIMIZATION:
-/// This screen previously had expensive reduce() and map() operations 
-/// that were executed on every rebuild in the build methods.
-/// 
-/// SOLUTION: Added caching for expensive calculations using computed properties
-/// that only recalculate when the underlying memories data changes.
 class StatsScreen extends StatefulWidget {
   final MemoryService memoryService;
 
@@ -26,13 +19,6 @@ class _StatsScreenState extends State<StatsScreen> {
   List<Memory> _memories = [];
   bool _isLoading = true;
 
-  // Cached values to avoid expensive recalculations on every rebuild
-  Memory? _cachedOldestMemory;
-  Map<String, int>? _cachedMonthlyStats;
-  int? _cachedMaxCount;
-  List<MapEntry<String, int>>? _cachedTopLocations;
-  bool _cacheValid = false;
-
   @override
   void initState() {
     super.initState();
@@ -45,79 +31,12 @@ class _StatsScreenState extends State<StatsScreen> {
     setState(() {
       _memories = memories;
       _isLoading = false;
-      // Invalidate cache when memories change
-      _invalidateCache();
     });
-  }
-
-  // Clear cached values when memories change
-  void _invalidateCache() {
-    _cacheValid = false;
-    _cachedOldestMemory = null;
-    _cachedMonthlyStats = null;
-    _cachedMaxCount = null;
-    _cachedTopLocations = null;
-  }
-
-  // Computed property for oldest memory with caching
-  Memory? get oldestMemory {
-    if (!_cacheValid || _cachedOldestMemory == null) {
-      if (_memories.isNotEmpty) {
-        // This expensive reduce operation now only runs when memories change!
-        _cachedOldestMemory = _memories.reduce((a, b) => a.date.isBefore(b.date) ? a : b);
-      }
-    }
-    return _cachedOldestMemory;
-  }
-
-  // Computed property for monthly stats with caching
-  Map<String, int> get monthlyStats {
-    if (!_cacheValid || _cachedMonthlyStats == null) {
-      _cachedMonthlyStats = <String, int>{};
-      // This expensive iteration now only runs when memories change!
-      for (final memory in _memories) {
-        final monthKey = DateFormat('MMM yyyy').format(memory.date);
-        _cachedMonthlyStats![monthKey] = (_cachedMonthlyStats![monthKey] ?? 0) + 1;
-      }
-      _cacheValid = true;
-    }
-    return _cachedMonthlyStats!;
-  }
-
-  // Computed property for max count with caching
-  int get maxCount {
-    if (!_cacheValid || _cachedMaxCount == null) {
-      final stats = monthlyStats; // This will ensure monthlyStats is calculated first
-      // This expensive reduce operation now only runs when memories change!
-      _cachedMaxCount = stats.values.isEmpty ? 1 : stats.values.reduce((a, b) => a > b ? a : b);
-    }
-    return _cachedMaxCount!;
-  }
-
-  // Computed property for top locations with caching
-  List<MapEntry<String, int>> get topLocations {
-    if (!_cacheValid || _cachedTopLocations == null) {
-      final locationCounts = <String, int>{};
-      for (final memory in _memories) {
-        locationCounts[memory.location] = (locationCounts[memory.location] ?? 0) + 1;
-      }
-      
-      final sorted = locationCounts.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-      
-      _cachedTopLocations = sorted.take(5).toList();
-    }
-    return _cachedTopLocations!;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Memory Statistics'),
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: Colors.white,
-      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -129,20 +48,61 @@ class _StatsScreenState extends State<StatsScreen> {
             ],
           ),
         ),
-        child: _isLoading
-            ? Center(
-                child: PremiumComponents.loadingIndicator(
-                  message: 'Loading your memory insights...',
+        child: SafeArea(
+          child: Column(
+            children: [
+              // Header
+              Container(
+                padding: const EdgeInsets.all(24),
+                child: Row(
+                  children: [
+                    Container(
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(12),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black.withOpacity(0.1),
+                            blurRadius: 8,
+                            offset: const Offset(0, 2),
+                          ),
+                        ],
+                      ),
+                      child: IconButton(
+                        onPressed: () => Navigator.pop(context),
+                        icon: const Icon(Icons.arrow_back),
+                        color: AppTheme.textColor,
+                      ),
+                    ),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Text(
+                        'Memory Statistics',
+                        style: AppTheme.titleStyle,
+                      ),
+                    ),
+                  ],
                 ),
-              )
-            : _buildStatsContent(),
+              ).animate().fadeIn().slideY(begin: -0.3, end: 0),
+
+              // Content
+              Expanded(
+                child: _isLoading
+                    ? Center(
+                        child: PremiumComponents.loadingIndicator(
+                          message: 'Loading your memory insights...',
+                        ),
+                      )
+                    : _buildStatsContent(),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }
 
-  // FIXED: Now uses cached computed properties instead of expensive operations on every rebuild
   Widget _buildStatsContent() {
-    // These calculations are now cached and only computed when memories change
     final totalMemories = _memories.length;
     final thisMonthMemories = _memories
         .where((m) =>
@@ -150,9 +110,9 @@ class _StatsScreenState extends State<StatsScreen> {
             m.date.year == DateTime.now().year)
         .length;
     final uniqueLocations = _memories.map((m) => m.location).toSet().length;
-    
-    // PERFORMANCE FIXED: Now uses cached computed property instead of reduce on every rebuild!
-    final oldestMem = oldestMemory;
+    final oldestMemory = _memories.isEmpty
+        ? null
+        : _memories.reduce((a, b) => a.date.isBefore(b.date) ? a : b);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -181,7 +141,7 @@ class _StatsScreenState extends State<StatsScreen> {
                   title: 'This Month',
                   value: thisMonthMemories.toString(),
                   icon: Icons.calendar_today,
-                  color: Colors.pink,
+                  color: AppTheme.secondaryColor,
                 ),
               ),
             ],
@@ -194,7 +154,7 @@ class _StatsScreenState extends State<StatsScreen> {
                   title: 'Unique Places',
                   value: uniqueLocations.toString(),
                   icon: Icons.location_on,
-                  color: Colors.purple,
+                  color: AppTheme.accentColor,
                 ),
               ),
               const SizedBox(width: 16),
@@ -248,15 +208,15 @@ class _StatsScreenState extends State<StatsScreen> {
                   const SizedBox(height: 4),
                   Text(
                     DateFormat('MMMM d, yyyy').format(_memories.last.date),
-                    style: AppTheme.bodyStyle.copyWith(color: Colors.grey[600]),
+                    style: AppTheme.captionStyle,
                   ),
-                  if (oldestMem != null) ...[
+                  if (oldestMemory != null) ...[
                     const SizedBox(height: 16),
                     Row(
                       children: [
                         Icon(
                           Icons.history,
-                          color: Colors.pink,
+                          color: AppTheme.secondaryColor,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
@@ -268,32 +228,34 @@ class _StatsScreenState extends State<StatsScreen> {
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      oldestMem!.title,
+                      oldestMemory!.title,
                       style: AppTheme.bodyStyle.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      DateFormat('MMMM d, yyyy').format(oldestMem!.date),
-                      style: AppTheme.bodyStyle.copyWith(color: Colors.grey[600]),
+                      DateFormat('MMMM d, yyyy').format(oldestMemory!.date),
+                      style: AppTheme.captionStyle,
                     ),
                   ],
                 ],
               ),
-            ),
+            ).animate(delay: const Duration(milliseconds: 200))
+                .fadeIn()
+                .slideY(begin: 0.3, end: 0),
           ],
 
           const SizedBox(height: 32),
 
           // Location Stats
-          if (topLocations.isNotEmpty) ...[
+          if (_getTopLocations().isNotEmpty) ...[
             PremiumComponents.sectionHeader(
               title: 'Top Locations',
               subtitle: 'Places with the most memories',
             ),
             const SizedBox(height: 16),
-            ...topLocations.map((location) => _buildLocationItem(location)),
+            ..._getTopLocations().map((location) => _buildLocationItem(location)),
           ],
 
           const SizedBox(height: 32),
@@ -326,7 +288,9 @@ class _StatsScreenState extends State<StatsScreen> {
                 _buildTimelineVisualization(),
               ],
             ),
-          ),
+          ).animate(delay: const Duration(milliseconds: 400))
+              .fadeIn()
+              .slideY(begin: 0.3, end: 0),
 
           const SizedBox(height: 32),
         ],
@@ -366,7 +330,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 ),
                 Text(
                   '${location.value} ${location.value == 1 ? 'memory' : 'memories'}',
-                  style: AppTheme.bodyStyle.copyWith(color: Colors.grey[600]),
+                  style: AppTheme.captionStyle,
                 ),
               ],
             ),
@@ -374,12 +338,12 @@ class _StatsScreenState extends State<StatsScreen> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor,
+              gradient: AppTheme.primaryGradient,
               borderRadius: BorderRadius.circular(12),
             ),
             child: Text(
               location.value.toString(),
-              style: AppTheme.bodyStyle.copyWith(
+              style: AppTheme.captionStyle.copyWith(
                 color: Colors.white,
                 fontWeight: FontWeight.bold,
               ),
@@ -387,20 +351,25 @@ class _StatsScreenState extends State<StatsScreen> {
           ),
         ],
       ),
-    );
+    ).animate(delay: Duration(milliseconds: 100 * location.value))
+        .fadeIn()
+        .slideX(begin: 0.3, end: 0);
   }
 
-  // PERFORMANCE FIXED: Now uses cached computed properties instead of expensive calculations on every rebuild!
   Widget _buildTimelineVisualization() {
     if (_memories.isEmpty) return const SizedBox();
 
-    // PERFORMANCE FIXED: Now uses cached computed properties
-    final stats = monthlyStats; // Cached calculation
-    final maxCountValue = maxCount; // Cached calculation
+    final monthlyStats = <String, int>{};
+    for (final memory in _memories) {
+      final monthKey = DateFormat('MMM yyyy').format(memory.date);
+      monthlyStats[monthKey] = (monthlyStats[monthKey] ?? 0) + 1;
+    }
+
+    final maxCount = monthlyStats.values.isEmpty ? 1 : monthlyStats.values.reduce((a, b) => a > b ? a : b);
 
     return Column(
-      children: stats.entries.map((entry) {
-        final percentage = entry.value / maxCountValue;
+      children: monthlyStats.entries.map((entry) {
+        final percentage = entry.value / maxCount;
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           child: Row(
@@ -409,7 +378,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 width: 80,
                 child: Text(
                   entry.key,
-                  style: AppTheme.bodyStyle.copyWith(fontSize: 12, color: Colors.grey[600]),
+                  style: AppTheme.captionStyle.copyWith(fontSize: 12),
                 ),
               ),
               const SizedBox(width: 16),
@@ -425,7 +394,7 @@ class _StatsScreenState extends State<StatsScreen> {
                     widthFactor: percentage,
                     child: Container(
                       decoration: BoxDecoration(
-                        color: AppTheme.primaryColor,
+                        gradient: AppTheme.primaryGradient,
                         borderRadius: BorderRadius.circular(4),
                       ),
                     ),
@@ -435,7 +404,7 @@ class _StatsScreenState extends State<StatsScreen> {
               const SizedBox(width: 8),
               Text(
                 entry.value.toString(),
-                style: AppTheme.bodyStyle.copyWith(
+                style: AppTheme.captionStyle.copyWith(
                   fontWeight: FontWeight.w600,
                 ),
               ),
@@ -450,5 +419,17 @@ class _StatsScreenState extends State<StatsScreen> {
     if (_memories.isEmpty) return 0;
     final years = _memories.map((m) => m.date.year).toSet();
     return years.length;
+  }
+
+  List<MapEntry<String, int>> _getTopLocations() {
+    final locationCounts = <String, int>{};
+    for (final memory in _memories) {
+      locationCounts[memory.location] = (locationCounts[memory.location] ?? 0) + 1;
+    }
+    
+    final sorted = locationCounts.entries.toList()
+      ..sort((a, b) => b.value.compareTo(a.value));
+    
+    return sorted.take(5).toList();
   }
 }
