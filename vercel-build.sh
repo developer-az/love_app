@@ -9,16 +9,22 @@ echo "🚀 Starting Flutter web build for Vercel deployment..."
 if ! command -v flutter &> /dev/null; then
     echo "⚠️  Flutter not found. Installing Flutter..."
     
-    # Download and install Flutter
-    curl -o flutter_linux.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.24.5-stable.tar.xz
+    # Download and install Flutter (using latest stable version)
+    curl -o flutter_linux.tar.xz https://storage.googleapis.com/flutter_infra_release/releases/stable/linux/flutter_linux_3.27.1-stable.tar.xz
     tar xf flutter_linux.tar.xz
+    
+    # Fix git ownership issues
+    git config --global --add safe.directory /vercel/path0/flutter
     
     # Add Flutter to PATH
     export PATH="$PWD/flutter/bin:$PATH"
     
-    # Verify installation
-    flutter doctor --android-licenses || true
-    flutter doctor
+    # Disable analytics and animations for CI
+    flutter config --no-analytics
+    flutter config --no-cli-animations
+    
+    # Verify installation (skip doctor checks that require additional tools)
+    flutter --version
 fi
 
 echo "📦 Installing dependencies..."
