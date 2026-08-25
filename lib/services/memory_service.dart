@@ -57,4 +57,10 @@ class MemoryService {
     );
     await _prefs.setString(_storageKey, memoriesJson);
   }
+
+  String? getSetting(String key) => _prefs.getString(key);
+
+  Future<void> setSetting(String key, String value) async {
+    await _prefs.setString(key, value);
+  }
 }

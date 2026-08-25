@@ -3,10 +3,11 @@ import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:intl/intl.dart';
 import 'package:my_special_app/models/memory.dart';
 import 'package:my_special_app/services/memory_service.dart';
 import 'package:my_special_app/theme/app_theme.dart';
+import 'package:my_special_app/utils/haptics.dart';
+import 'package:my_special_app/utils/memory_dates.dart';
 import 'package:my_special_app/widgets/memory_photo.dart';
 import 'package:uuid/uuid.dart';
 
@@ -25,6 +26,9 @@ class AddMemoryScreen extends StatefulWidget {
 }
 
 class _AddMemoryScreenState extends State<AddMemoryScreen> {
+  static const _titleLimit = 80;
+  static const _storyLimit = 2000;
+
   final _formKey = GlobalKey<FormState>();
   final _titleController = TextEditingController();
   final _descriptionController = TextEditingController();
@@ -34,6 +38,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
   String? _pickedImage;
   bool _isLoading = false;
   bool _isPickingImage = false;
+  bool _allowPop = false;
 
   bool get _isEditing => widget.existingMemory != null;
 
@@ -42,6 +47,27 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
     final url = _imageUrlController.text.trim();
     if (url.startsWith('http://') || url.startsWith('https://')) return url;
     return null;
+  }
+
+  bool get _isDirty {
+    final existing = widget.existingMemory;
+    if (existing == null) {
+      return _titleController.text.trim().isNotEmpty ||
+          _descriptionController.text.trim().isNotEmpty ||
+          _locationController.text.trim().isNotEmpty ||
+          _imageUrlController.text.trim().isNotEmpty ||
+          _pickedImage != null;
+    }
+    final existingPicked =
+        existing.imageUrl.startsWith('data:image') ? existing.imageUrl : null;
+    final existingUrl =
+        existing.imageUrl.startsWith('http') ? existing.imageUrl : '';
+    return _titleController.text.trim() != existing.title ||
+        _descriptionController.text.trim() != existing.description ||
+        _locationController.text.trim() != existing.location ||
+        _selectedDate != existing.date ||
+        _pickedImage != existingPicked ||
+        _imageUrlController.text.trim() != existingUrl;
   }
 
   @override
@@ -59,21 +85,67 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
         _imageUrlController.text = existing.imageUrl;
       }
     }
-    _imageUrlController.addListener(_onUrlChanged);
+    _titleController.addListener(_onFormChanged);
+    _descriptionController.addListener(_onFormChanged);
+    _locationController.addListener(_onFormChanged);
+    _imageUrlController.addListener(_onFormChanged);
   }
 
-  void _onUrlChanged() {
+  void _onFormChanged() {
     if (mounted) setState(() {});
   }
 
   @override
   void dispose() {
-    _imageUrlController.removeListener(_onUrlChanged);
-    _titleController.dispose();
-    _descriptionController.dispose();
-    _locationController.dispose();
-    _imageUrlController.dispose();
+    _titleController
+      ..removeListener(_onFormChanged)
+      ..dispose();
+    _descriptionController
+      ..removeListener(_onFormChanged)
+      ..dispose();
+    _locationController
+      ..removeListener(_onFormChanged)
+      ..dispose();
+    _imageUrlController
+      ..removeListener(_onFormChanged)
+      ..dispose();
     super.dispose();
+  }
+
+  Future<void> _leave([Object? result]) async {
+    _allowPop = true;
+    if (!mounted) return;
+    Navigator.of(context).pop(result);
+  }
+
+  Future<void> _confirmPop(bool didPop) async {
+    if (didPop) return;
+    if (!_isDirty) {
+      await _leave();
+      return;
+    }
+    final discard = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Discard changes?'),
+        content: const Text(
+          'You have unsaved edits. If you leave now, they will be lost.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep editing'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Discard'),
+          ),
+        ],
+      ),
+    );
+    if (discard == true && mounted) {
+      await _leave();
+    }
   }
 
   Future<void> _selectDate() async {
@@ -82,19 +154,6 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
       initialDate: _selectedDate,
       firstDate: DateTime(2000),
       lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: ColorScheme.light(
-              primary: AppTheme.primaryColor,
-              onPrimary: Colors.white,
-              surface: Colors.white,
-              onSurface: AppTheme.textColor,
-            ),
-          ),
-          child: child!,
-        );
-      },
     );
     if (picked != null && picked != _selectedDate) {
       setState(() => _selectedDate = picked);
@@ -126,8 +185,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Could not pick image: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     } finally {
@@ -159,6 +217,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
         imageUrl: imageUrl,
         date: _selectedDate,
         location: _locationController.text.trim(),
+        isFavorite: existing?.isFavorite ?? false,
       );
 
       if (existing == null) {
@@ -168,6 +227,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
       }
 
       if (!mounted) return;
+      mediumHaptic();
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -175,18 +235,15 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                 ? 'Memory saved successfully!'
                 : 'Memory updated successfully!',
           ),
-          backgroundColor: Colors.green,
-          behavior: SnackBarBehavior.floating,
         ),
       );
-      Navigator.pop(context, true);
+      await _leave(true);
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Error saving memory: $e'),
-          backgroundColor: Colors.red,
-          behavior: SnackBarBehavior.floating,
+          backgroundColor: Theme.of(context).colorScheme.error,
         ),
       );
     } finally {
@@ -196,146 +253,166 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      resizeToAvoidBottomInset: true,
-      appBar: AppBar(
-        backgroundColor: const Color(0xFFF8FAFC),
-        title: Text(_isEditing ? 'Edit Memory' : 'Add New Memory'),
-      ),
-      body: Column(
-        children: [
-          Expanded(
-            child: Form(
-              key: _formKey,
-              child: ListView(
-                keyboardDismissBehavior:
-                    ScrollViewKeyboardDismissBehavior.onDrag,
-                padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
-                children: [
-                  _buildLabeledField(
-                    label: 'Title',
-                    icon: Icons.title,
-                    child: _buildTextField(
-                      controller: _titleController,
-                      hintText: 'Give your memory a beautiful title...',
-                      textInputAction: TextInputAction.next,
-                      textCapitalization: TextCapitalization.sentences,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter a title';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _buildLabeledField(
-                    label: 'Story',
-                    icon: Icons.auto_stories,
-                    child: _buildTextField(
-                      controller: _descriptionController,
-                      hintText: 'Tell the story behind this special moment...',
-                      maxLines: 5,
-                      textCapitalization: TextCapitalization.sentences,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter a description';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _buildLabeledField(
-                    label: 'Location',
-                    icon: Icons.location_on,
-                    child: _buildTextField(
-                      controller: _locationController,
-                      hintText: 'Where did this happen?',
-                      textInputAction: TextInputAction.next,
-                      textCapitalization: TextCapitalization.words,
-                      validator: (value) {
-                        if (value == null || value.trim().isEmpty) {
-                          return 'Please enter a location';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(height: 20),
-                  _buildLabeledField(
-                    label: 'Date',
-                    icon: Icons.calendar_today,
-                    child: Material(
-                      color: Colors.white,
-                      borderRadius: BorderRadius.circular(16),
-                      child: InkWell(
-                        onTap: _selectDate,
-                        borderRadius: BorderRadius.circular(16),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 16,
-                            vertical: 14,
-                          ),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(16),
-                            border: Border.all(color: const Color(0xFFE5E7EB)),
-                          ),
-                          child: Row(
-                            children: [
-                              Container(
-                                padding: const EdgeInsets.all(8),
-                                decoration: BoxDecoration(
-                                  color: AppTheme.primaryColor
-                                      .withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(8),
-                                ),
-                                child: Icon(
-                                  Icons.calendar_today,
-                                  color: AppTheme.primaryColor,
-                                  size: 20,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  DateFormat('MMMM d, yyyy')
-                                      .format(_selectedDate),
-                                  style: AppTheme.bodyStyle.copyWith(
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                              ),
-                              Icon(
-                                Icons.chevron_right,
-                                color: AppTheme.textSecondary,
-                              ),
-                            ],
+    final colorScheme = Theme.of(context).colorScheme;
+    return PopScope(
+      canPop: !_isDirty || _allowPop,
+      onPopInvokedWithResult: (didPop, _) => _confirmPop(didPop),
+      child: GestureDetector(
+        onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+        child: Scaffold(
+          resizeToAvoidBottomInset: true,
+          appBar: AppBar(
+            title: Text(_isEditing ? 'Edit Memory' : 'Add New Memory'),
+          ),
+          body: Column(
+            children: [
+              Expanded(
+                child: AutofillGroup(
+                  child: Form(
+                    key: _formKey,
+                    child: ListView(
+                      keyboardDismissBehavior:
+                          ScrollViewKeyboardDismissBehavior.onDrag,
+                      padding: const EdgeInsets.fromLTRB(20, 8, 20, 24),
+                      children: [
+                        _buildLabeledField(
+                          label: 'Title',
+                          icon: Icons.title,
+                          counter:
+                              '${_titleController.text.characters.length}/$_titleLimit',
+                          child: _buildTextField(
+                            controller: _titleController,
+                            hintText: 'Give your memory a beautiful title...',
+                            textInputAction: TextInputAction.next,
+                            textCapitalization: TextCapitalization.sentences,
+                            autofillHints: const [AutofillHints.name],
+                            maxLength: _titleLimit,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter a title';
+                              }
+                              return null;
+                            },
                           ),
                         ),
-                      ),
+                        const SizedBox(height: 20),
+                        _buildLabeledField(
+                          label: 'Story',
+                          icon: Icons.auto_stories,
+                          counter:
+                              '${_descriptionController.text.characters.length}/$_storyLimit',
+                          child: _buildTextField(
+                            controller: _descriptionController,
+                            hintText:
+                                'Tell the story behind this special moment...',
+                            maxLines: 5,
+                            textCapitalization: TextCapitalization.sentences,
+                            maxLength: _storyLimit,
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter a description';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _buildLabeledField(
+                          label: 'Location',
+                          icon: Icons.location_on,
+                          child: _buildTextField(
+                            controller: _locationController,
+                            hintText: 'Where did this happen?',
+                            textInputAction: TextInputAction.next,
+                            textCapitalization: TextCapitalization.words,
+                            autofillHints: const [AutofillHints.addressCity],
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'Please enter a location';
+                              }
+                              return null;
+                            },
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _buildLabeledField(
+                          label: 'Date',
+                          icon: Icons.calendar_today,
+                          child: Material(
+                            color: Theme.of(context).cardTheme.color ??
+                                colorScheme.surface,
+                            borderRadius: BorderRadius.circular(16),
+                            child: InkWell(
+                              onTap: _selectDate,
+                              borderRadius: BorderRadius.circular(16),
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 16,
+                                  vertical: 14,
+                                ),
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(16),
+                                  border: Border.all(
+                                    color: colorScheme.outlineVariant,
+                                  ),
+                                ),
+                                child: Row(
+                                  children: [
+                                    Container(
+                                      padding: const EdgeInsets.all(8),
+                                      decoration: BoxDecoration(
+                                        color: colorScheme.primary
+                                            .withValues(alpha: 0.1),
+                                        borderRadius: BorderRadius.circular(8),
+                                      ),
+                                      child: Icon(
+                                        Icons.calendar_today,
+                                        color: colorScheme.primary,
+                                        size: 20,
+                                      ),
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Text(
+                                        MemoryDates.full(_selectedDate),
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleMedium,
+                                      ),
+                                    ),
+                                    Icon(
+                                      Icons.chevron_right,
+                                      color: colorScheme.onSurfaceVariant,
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        _buildLabeledField(
+                          label: 'Photo',
+                          icon: Icons.photo,
+                          child: _buildPhotoPicker(),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(height: 20),
-                  _buildLabeledField(
-                    label: 'Photo',
-                    icon: Icons.photo,
-                    child: _buildPhotoPicker(),
-                  ),
-                ],
+                ),
               ),
-            ),
+              _buildSaveBar(),
+            ],
           ),
-          _buildSaveBar(),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildSaveBar() {
     return Material(
-      color: Colors.white,
+      color: Theme.of(context).cardTheme.color ??
+          Theme.of(context).colorScheme.surface,
       elevation: 8,
       shadowColor: Colors.black26,
       child: SafeArea(
@@ -369,11 +446,11 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                       )
                     : Text(
                         _isEditing ? 'Update Memory' : 'Save Memory',
-                        style: AppTheme.bodyStyle.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
-                          fontSize: 17,
-                        ),
+                        style:
+                            Theme.of(context).textTheme.titleMedium?.copyWith(
+                                  color: Colors.white,
+                                  fontWeight: FontWeight.w700,
+                                ),
                       ),
               ),
             ),
@@ -385,6 +462,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
 
   Widget _buildPhotoPicker() {
     final preview = _previewImageUrl;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -427,7 +505,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                 icon: const Icon(Icons.photo_library_outlined, size: 20),
                 label: Text(_isPickingImage ? 'Loading...' : 'Gallery'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.primaryColor,
+                  foregroundColor: colorScheme.primary,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -444,7 +522,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                 icon: const Icon(Icons.photo_camera_outlined, size: 20),
                 label: const Text('Camera'),
                 style: OutlinedButton.styleFrom(
-                  foregroundColor: AppTheme.primaryColor,
+                  foregroundColor: colorScheme.primary,
                   padding: const EdgeInsets.symmetric(vertical: 14),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(12),
@@ -461,6 +539,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
             hintText: 'Or paste an image URL (optional)',
             keyboardType: TextInputType.url,
             textInputAction: TextInputAction.done,
+            autofillHints: const [AutofillHints.url],
           ),
         ],
       ],
@@ -471,18 +550,27 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
     required String label,
     required IconData icon,
     required Widget child,
+    String? counter,
   }) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
-            Icon(icon, color: AppTheme.primaryColor, size: 18),
+            Icon(icon, color: colorScheme.primary, size: 18),
             const SizedBox(width: 8),
-            Text(
-              label,
-              style: AppTheme.subheadingStyle.copyWith(fontSize: 16),
+            Expanded(
+              child: Text(
+                label,
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
             ),
+            if (counter != null)
+              Text(
+                counter,
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
           ],
         ),
         const SizedBox(height: 8),
@@ -496,23 +584,24 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
     required String hintText,
     String? Function(String?)? validator,
     int maxLines = 1,
+    int? maxLength,
     TextInputAction? textInputAction,
     TextCapitalization textCapitalization = TextCapitalization.none,
     TextInputType? keyboardType,
+    Iterable<String>? autofillHints,
   }) {
     return TextFormField(
       controller: controller,
-      decoration: AppTheme.textFieldDecoration.copyWith(
-        hintText: hintText,
-        hintStyle: AppTheme.captionStyle.copyWith(color: Colors.grey[500]),
-      ),
-      style: AppTheme.bodyStyle,
+      decoration: InputDecoration(hintText: hintText, counterText: ''),
+      style: Theme.of(context).textTheme.bodyLarge,
       maxLines: maxLines,
       minLines: maxLines > 1 ? 4 : 1,
+      maxLength: maxLength,
       validator: validator,
       textInputAction: textInputAction,
       textCapitalization: textCapitalization,
       keyboardType: keyboardType,
+      autofillHints: autofillHints,
       inputFormatters: maxLines == 1
           ? [FilteringTextInputFormatter.singleLineFormatter]
           : null,
