@@ -1,33 +1,51 @@
 import 'dart:convert';
+
+import 'package:flutter/foundation.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import '../models/memory.dart';
+import 'package:my_special_app/models/memory.dart';
+
+/// Top-level so large payloads can be parsed on a worker isolate.
+List<Memory> parseMemoriesJson(String raw) {
+  try {
+    final decoded = json.decode(raw);
+    if (decoded is! List) return [];
+    return decoded.map(Memory.tryFromJson).whereType<Memory>().toList();
+  } catch (_) {
+    return [];
+  }
+}
 
 class MemoryService {
   static const String _storageKey = 'memories';
+  static const int _isolateThresholdBytes = 100 * 1024;
+
   final SharedPreferences _prefs;
+  List<Memory>? _cache;
 
   MemoryService(this._prefs);
 
   Future<List<Memory>> getMemories() async {
-    final String? memoriesJson = _prefs.getString(_storageKey);
-    if (memoriesJson == null || memoriesJson.isEmpty) return [];
+    if (_cache != null) return List<Memory>.from(_cache!);
 
-    try {
-      final decoded = json.decode(memoriesJson);
-      if (decoded is! List) return [];
-      return decoded.map(Memory.tryFromJson).whereType<Memory>().toList();
-    } catch (_) {
+    final String? memoriesJson = _prefs.getString(_storageKey);
+    if (memoriesJson == null || memoriesJson.isEmpty) {
+      _cache = const [];
       return [];
     }
+
+    final parsed = !kIsWeb && memoriesJson.length > _isolateThresholdBytes
+        ? await compute(parseMemoriesJson, memoriesJson)
+        : parseMemoriesJson(memoriesJson);
+    _cache = parsed;
+    return List<Memory>.from(parsed);
   }
 
   Future<Memory?> getMemoryById(String id) async {
     final memories = await getMemories();
-    try {
-      return memories.firstWhere((memory) => memory.id == id);
-    } catch (_) {
-      return null;
+    for (final memory in memories) {
+      if (memory.id == id) return memory;
     }
+    return null;
   }
 
   Future<void> addMemory(Memory memory) async {
@@ -52,6 +70,7 @@ class MemoryService {
   }
 
   Future<void> _saveMemories(List<Memory> memories) async {
+    _cache = List<Memory>.from(memories);
     final memoriesJson = json.encode(
       memories.map((memory) => memory.toJson()).toList(),
     );

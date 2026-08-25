@@ -15,26 +15,128 @@ class MemoryController extends ChangeNotifier {
   static const _themeKey = 'theme_mode';
 
   final MemoryService _service;
+  final ValueNotifier<ThemeMode> themeListenable =
+      ValueNotifier(ThemeMode.system);
 
   List<Memory> _memories = [];
+  List<Memory> _visible = const [];
+  Map<String, List<Memory>> _byMonth = const {};
   String _searchQuery = '';
   MemorySort _sort = MemorySort.newest;
   MemoryLayout _layout = MemoryLayout.grid;
   ThemeMode _themeMode = ThemeMode.system;
   bool _isLoading = true;
+  bool _prefsLoaded = false;
   Memory? _lastDeleted;
+  int _favoriteCount = 0;
 
   List<Memory> get memories => List.unmodifiable(_memories);
+  List<Memory> get visibleMemories => _visible;
+  Map<String, List<Memory>> get memoriesByMonth => _byMonth;
   String get searchQuery => _searchQuery;
   MemorySort get sort => _sort;
   MemoryLayout get layout => _layout;
   ThemeMode get themeMode => _themeMode;
   bool get isLoading => _isLoading;
   MemoryService get service => _service;
-  int get favoriteCount =>
-      _memories.where((memory) => memory.isFavorite).length;
+  int get favoriteCount => _favoriteCount;
 
-  List<Memory> get visibleMemories {
+  Future<void> load({bool showSpinner = false}) async {
+    if (showSpinner) {
+      _isLoading = true;
+      notifyListeners();
+    }
+    if (!_prefsLoaded) {
+      _restorePrefs();
+      _prefsLoaded = true;
+    }
+    _memories = await _service.getMemories();
+    _isLoading = false;
+    _rebuildDerived();
+    notifyListeners();
+  }
+
+  void setSearchQuery(String query) {
+    if (query == _searchQuery) return;
+    _searchQuery = query;
+    _rebuildDerived();
+    notifyListeners();
+  }
+
+  Future<void> setSort(MemorySort sort) async {
+    if (sort == _sort) return;
+    _sort = sort;
+    _rebuildDerived();
+    notifyListeners();
+    await _service.setSetting(_sortKey, sort.name);
+  }
+
+  Future<void> setLayout(MemoryLayout layout) async {
+    if (layout == _layout) return;
+    _layout = layout;
+    notifyListeners();
+    await _service.setSetting(_layoutKey, layout.name);
+  }
+
+  Future<void> cycleThemeMode() async {
+    _themeMode = switch (_themeMode) {
+      ThemeMode.system => ThemeMode.light,
+      ThemeMode.light => ThemeMode.dark,
+      ThemeMode.dark => ThemeMode.system,
+    };
+    themeListenable.value = _themeMode;
+    notifyListeners();
+    await _service.setSetting(_themeKey, _themeMode.name);
+  }
+
+  Future<void> add(Memory memory) async {
+    await _service.addMemory(memory);
+    await load();
+  }
+
+  Future<void> update(Memory memory) async {
+    await _service.updateMemory(memory);
+    final index = _memories.indexWhere((item) => item.id == memory.id);
+    if (index == -1) {
+      await load();
+      return;
+    }
+    _memories[index] = memory;
+    _rebuildDerived();
+    notifyListeners();
+  }
+
+  Future<void> toggleFavorite(Memory memory) async {
+    final index = _memories.indexWhere((item) => item.id == memory.id);
+    if (index == -1) return;
+    final updated =
+        _memories[index].copyWith(isFavorite: !_memories[index].isFavorite);
+    _memories[index] = updated;
+    _rebuildDerived();
+    notifyListeners();
+    await _service.updateMemory(updated);
+  }
+
+  Future<void> delete(Memory memory) async {
+    _lastDeleted = memory;
+    _memories.removeWhere((item) => item.id == memory.id);
+    _rebuildDerived();
+    notifyListeners();
+    await _service.deleteMemory(memory.id);
+  }
+
+  Future<bool> undoDelete() async {
+    final restored = _lastDeleted;
+    if (restored == null) return false;
+    _lastDeleted = null;
+    await _service.addMemory(restored);
+    _memories.add(restored);
+    _rebuildDerived();
+    notifyListeners();
+    return true;
+  }
+
+  void _rebuildDerived() {
     final filtered = _searchQuery.trim().isEmpty
         ? List<Memory>.from(_memories)
         : _memories
@@ -58,85 +160,16 @@ class MemoryController extends ChangeNotifier {
           return b.date.compareTo(a.date);
       }
     });
-    return filtered;
-  }
+    _visible = filtered;
+    _favoriteCount = _memories.where((memory) => memory.isFavorite).length;
 
-  Map<String, List<Memory>> get memoriesByMonth {
     final grouped = <String, List<Memory>>{};
-    for (final memory in visibleMemories) {
+    for (final memory in _visible) {
       grouped
           .putIfAbsent(MemoryDates.monthYear(memory.date), () => [])
           .add(memory);
     }
-    return grouped;
-  }
-
-  Future<void> load({bool showSpinner = false}) async {
-    if (showSpinner) {
-      _isLoading = true;
-      notifyListeners();
-    }
-    _restorePrefs();
-    _memories = await _service.getMemories();
-    _isLoading = false;
-    notifyListeners();
-  }
-
-  void setSearchQuery(String query) {
-    if (query == _searchQuery) return;
-    _searchQuery = query;
-    notifyListeners();
-  }
-
-  Future<void> setSort(MemorySort sort) async {
-    _sort = sort;
-    await _service.setSetting(_sortKey, sort.name);
-    notifyListeners();
-  }
-
-  Future<void> setLayout(MemoryLayout layout) async {
-    _layout = layout;
-    await _service.setSetting(_layoutKey, layout.name);
-    notifyListeners();
-  }
-
-  Future<void> cycleThemeMode() async {
-    _themeMode = switch (_themeMode) {
-      ThemeMode.system => ThemeMode.light,
-      ThemeMode.light => ThemeMode.dark,
-      ThemeMode.dark => ThemeMode.system,
-    };
-    await _service.setSetting(_themeKey, _themeMode.name);
-    notifyListeners();
-  }
-
-  Future<void> add(Memory memory) async {
-    await _service.addMemory(memory);
-    await load();
-  }
-
-  Future<void> update(Memory memory) async {
-    await _service.updateMemory(memory);
-    await load();
-  }
-
-  Future<void> toggleFavorite(Memory memory) async {
-    await update(memory.copyWith(isFavorite: !memory.isFavorite));
-  }
-
-  Future<void> delete(Memory memory) async {
-    _lastDeleted = memory;
-    await _service.deleteMemory(memory.id);
-    await load();
-  }
-
-  Future<bool> undoDelete() async {
-    final restored = _lastDeleted;
-    if (restored == null) return false;
-    _lastDeleted = null;
-    await _service.addMemory(restored);
-    await load();
-    return true;
+    _byMonth = grouped;
   }
 
   void _restorePrefs() {
@@ -155,6 +188,13 @@ class MemoryController extends ChangeNotifier {
       (value) => value.name == themeName,
       orElse: () => ThemeMode.system,
     );
+    themeListenable.value = _themeMode;
+  }
+
+  @override
+  void dispose() {
+    themeListenable.dispose();
+    super.dispose();
   }
 }
 

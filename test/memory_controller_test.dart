@@ -108,4 +108,17 @@ void main() {
     expect(gridColumnsForWidth(900), 3);
     expect(gridColumnsForWidth(1400), 4);
   });
+
+  test('toggleFavorite is optimistic and keeps siblings', () async {
+    final controller = await createController([
+      memory(id: '1', title: 'One'),
+      memory(id: '2', title: 'Two'),
+    ]);
+
+    await controller.toggleFavorite(controller.memories.first);
+    expect(controller.memories, hasLength(2));
+    expect(controller.favoriteCount, 1);
+    expect(controller.memories.first.isFavorite, isTrue);
+    expect(controller.themeListenable.value, ThemeMode.system);
+  });
 }

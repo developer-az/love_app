@@ -113,6 +113,9 @@ class AppTheme {
     return _build(colorScheme, Brightness.dark);
   }
 
+  static final ThemeData lightTheme = light();
+  static final ThemeData darkTheme = dark();
+
   static ThemeData _build(ColorScheme colorScheme, Brightness brightness) {
     final isDark = brightness == Brightness.dark;
     final onSurface = colorScheme.onSurface;

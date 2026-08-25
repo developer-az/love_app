@@ -56,14 +56,23 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
 
   Future<void> _toggleFavorite() async {
     lightHaptic();
+    final controller = MemoryScope.maybeOf(context);
+    if (controller != null) {
+      await controller.toggleFavorite(_memory);
+      if (!mounted) return;
+      final match =
+          controller.memories.where((memory) => memory.id == _memory.id);
+      setState(() {
+        _memory = match.isEmpty
+            ? _memory.copyWith(isFavorite: !_memory.isFavorite)
+            : match.first;
+      });
+      return;
+    }
     final updated = _memory.copyWith(isFavorite: !_memory.isFavorite);
     await widget.memoryService.updateMemory(updated);
     if (!mounted) return;
     setState(() => _memory = updated);
-    final controller = MemoryScope.maybeOf(context);
-    if (controller != null) {
-      await controller.load();
-    }
   }
 
   Future<void> _deleteMemory() async {

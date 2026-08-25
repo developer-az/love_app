@@ -475,7 +475,8 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
               child: Stack(
                 fit: StackFit.expand,
                 children: [
-                  MemoryPhoto(imageUrl: preview, fit: BoxFit.cover),
+                  MemoryPhoto(
+                      imageUrl: preview, fit: BoxFit.cover, isThumbnail: true),
                   Positioned(
                     top: 8,
                     right: 8,

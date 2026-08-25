@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:my_special_app/models/memory.dart';
+import 'package:my_special_app/models/memory_stats.dart';
 import 'package:my_special_app/services/memory_service.dart';
 import 'package:my_special_app/theme/app_theme.dart';
 import 'package:my_special_app/widgets/premium_components.dart';
@@ -16,14 +17,8 @@ class StatsScreen extends StatefulWidget {
 
 class _StatsScreenState extends State<StatsScreen> {
   List<Memory> _memories = [];
+  MemoryStats _stats = MemoryStats.from(const []);
   bool _isLoading = true;
-
-  Memory? _cachedOldestMemory;
-  Map<String, int>? _cachedMonthlyStats;
-  int? _cachedMaxCount;
-  List<MapEntry<String, int>>? _cachedTopLocations;
-  int? _cachedYearsActive;
-  bool _cacheValid = false;
 
   @override
   void initState() {
@@ -39,78 +34,9 @@ class _StatsScreenState extends State<StatsScreen> {
     if (!mounted) return;
     setState(() {
       _memories = memories;
+      _stats = MemoryStats.from(memories);
       _isLoading = false;
-      _invalidateCache();
     });
-  }
-
-  void _invalidateCache() {
-    _cacheValid = false;
-    _cachedOldestMemory = null;
-    _cachedMonthlyStats = null;
-    _cachedMaxCount = null;
-    _cachedTopLocations = null;
-    _cachedYearsActive = null;
-  }
-
-  Memory? get oldestMemory {
-    if (!_cacheValid || _cachedOldestMemory == null) {
-      if (_memories.isNotEmpty) {
-        _cachedOldestMemory =
-            _memories.reduce((a, b) => a.date.isBefore(b.date) ? a : b);
-      }
-    }
-    return _cachedOldestMemory;
-  }
-
-  Map<String, int> get monthlyStats {
-    if (!_cacheValid || _cachedMonthlyStats == null) {
-      _cachedMonthlyStats = <String, int>{};
-      for (final memory in _memories) {
-        final monthKey = DateFormat('MMM yyyy').format(memory.date);
-        _cachedMonthlyStats![monthKey] =
-            (_cachedMonthlyStats![monthKey] ?? 0) + 1;
-      }
-      _cacheValid = true;
-    }
-    return _cachedMonthlyStats!;
-  }
-
-  int get maxCount {
-    if (_cachedMaxCount == null) {
-      final stats = monthlyStats;
-      _cachedMaxCount = stats.values.isEmpty
-          ? 1
-          : stats.values.reduce((a, b) => a > b ? a : b);
-    }
-    return _cachedMaxCount!;
-  }
-
-  List<MapEntry<String, int>> get topLocations {
-    if (_cachedTopLocations == null) {
-      final locationCounts = <String, int>{};
-      for (final memory in _memories) {
-        locationCounts[memory.location] =
-            (locationCounts[memory.location] ?? 0) + 1;
-      }
-
-      final sorted = locationCounts.entries.toList()
-        ..sort((a, b) => b.value.compareTo(a.value));
-
-      _cachedTopLocations = sorted.take(5).toList();
-    }
-    return _cachedTopLocations!;
-  }
-
-  int get yearsActive {
-    if (_cachedYearsActive == null) {
-      if (_memories.isEmpty) {
-        _cachedYearsActive = 0;
-      } else {
-        _cachedYearsActive = _memories.map((m) => m.date.year).toSet().length;
-      }
-    }
-    return _cachedYearsActive!;
   }
 
   @override
@@ -130,14 +56,9 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Widget _buildStatsContent() {
-    final totalMemories = _memories.length;
-    final now = DateTime.now();
-    final thisMonthMemories = _memories
-        .where((m) => m.date.month == now.month && m.date.year == now.year)
-        .length;
-    final uniqueLocations = _memories.map((m) => m.location).toSet().length;
-    final favoriteCount = _memories.where((m) => m.isFavorite).length;
-    final oldestMem = oldestMemory;
+    final stats = _stats;
+    final oldestMem = stats.oldest;
+    final latest = stats.latestAdded;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
@@ -154,7 +75,7 @@ class _StatsScreenState extends State<StatsScreen> {
               Expanded(
                 child: PremiumComponents.statsCard(
                   title: 'Total Memories',
-                  value: totalMemories.toString(),
+                  value: stats.total.toString(),
                   icon: Icons.favorite,
                   color: AppTheme.primaryColor,
                 ),
@@ -163,7 +84,7 @@ class _StatsScreenState extends State<StatsScreen> {
               Expanded(
                 child: PremiumComponents.statsCard(
                   title: 'This Month',
-                  value: thisMonthMemories.toString(),
+                  value: stats.thisMonth.toString(),
                   icon: Icons.calendar_today,
                   color: AppTheme.secondaryColor,
                 ),
@@ -176,7 +97,7 @@ class _StatsScreenState extends State<StatsScreen> {
               Expanded(
                 child: PremiumComponents.statsCard(
                   title: 'Unique Places',
-                  value: uniqueLocations.toString(),
+                  value: stats.uniqueLocations.toString(),
                   icon: Icons.location_on,
                   color: AppTheme.accentColor,
                 ),
@@ -185,7 +106,7 @@ class _StatsScreenState extends State<StatsScreen> {
               Expanded(
                 child: PremiumComponents.statsCard(
                   title: 'Years Active',
-                  value: yearsActive.toString(),
+                  value: stats.yearsActive.toString(),
                   icon: Icons.timeline,
                   color: Colors.orange,
                 ),
@@ -195,12 +116,12 @@ class _StatsScreenState extends State<StatsScreen> {
           const SizedBox(height: 16),
           PremiumComponents.statsCard(
             title: 'Favorites',
-            value: favoriteCount.toString(),
+            value: stats.favoriteCount.toString(),
             icon: Icons.favorite,
             color: AppTheme.secondaryColor,
           ),
           const SizedBox(height: 32),
-          if (_memories.isNotEmpty) ...[
+          if (latest != null) ...[
             PremiumComponents.sectionHeader(
               title: 'Recent Activity',
               subtitle: 'Your latest memories',
@@ -228,12 +149,12 @@ class _StatsScreenState extends State<StatsScreen> {
                   ),
                   const SizedBox(height: 12),
                   Text(
-                    _memories.last.title,
+                    latest.title,
                     style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    DateFormat('MMMM d, yyyy').format(_memories.last.date),
+                    DateFormat('MMMM d, yyyy').format(latest.date),
                     style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   if (oldestMem != null) ...[
@@ -268,13 +189,13 @@ class _StatsScreenState extends State<StatsScreen> {
             ),
           ],
           const SizedBox(height: 32),
-          if (topLocations.isNotEmpty) ...[
+          if (stats.topLocations.isNotEmpty) ...[
             PremiumComponents.sectionHeader(
               title: 'Top Locations',
               subtitle: 'Places with the most memories',
             ),
             const SizedBox(height: 16),
-            ...topLocations.map((location) => _buildLocationItem(location)),
+            ...stats.topLocations.map(_buildLocationItem),
           ],
           const SizedBox(height: 32),
           PremiumComponents.sectionHeader(
@@ -301,7 +222,7 @@ class _StatsScreenState extends State<StatsScreen> {
                   ],
                 ),
                 const SizedBox(height: 20),
-                _buildTimelineVisualization(),
+                _buildTimelineVisualization(stats),
               ],
             ),
           ),
@@ -366,14 +287,13 @@ class _StatsScreenState extends State<StatsScreen> {
     );
   }
 
-  Widget _buildTimelineVisualization() {
+  Widget _buildTimelineVisualization(MemoryStats stats) {
     if (_memories.isEmpty) return const SizedBox();
 
-    final stats = monthlyStats;
-    final maxCountValue = maxCount;
+    final maxCountValue = stats.maxMonthlyCount;
 
     return Column(
-      children: stats.entries.map((entry) {
+      children: stats.monthlyCounts.entries.map((entry) {
         final percentage = entry.value / maxCountValue;
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
