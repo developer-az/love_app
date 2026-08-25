@@ -116,30 +116,16 @@ class _StatsScreenState extends State<StatsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
       appBar: AppBar(
-        backgroundColor: const Color(0xFFF8FAFC),
         title: const Text('Memory Statistics'),
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Color(0xFFF8FAFC),
-              Color(0xFFEDF2F7),
-            ],
-          ),
-        ),
-        child: _isLoading
-            ? Center(
-                child: PremiumComponents.loadingIndicator(
-                  message: 'Loading your memory insights...',
-                ),
-              )
-            : _buildStatsContent(),
-      ),
+      body: _isLoading
+          ? Center(
+              child: PremiumComponents.loadingIndicator(
+                message: 'Loading your memory insights...',
+              ),
+            )
+          : _buildStatsContent(),
     );
   }
 
@@ -150,6 +136,7 @@ class _StatsScreenState extends State<StatsScreen> {
         .where((m) => m.date.month == now.month && m.date.year == now.year)
         .length;
     final uniqueLocations = _memories.map((m) => m.location).toSet().length;
+    final favoriteCount = _memories.where((m) => m.isFavorite).length;
     final oldestMem = oldestMemory;
 
     return SingleChildScrollView(
@@ -205,6 +192,13 @@ class _StatsScreenState extends State<StatsScreen> {
               ),
             ],
           ),
+          const SizedBox(height: 16),
+          PremiumComponents.statsCard(
+            title: 'Favorites',
+            value: favoriteCount.toString(),
+            icon: Icons.favorite,
+            color: AppTheme.secondaryColor,
+          ),
           const SizedBox(height: 32),
           if (_memories.isNotEmpty) ...[
             PremiumComponents.sectionHeader(
@@ -214,7 +208,7 @@ class _StatsScreenState extends State<StatsScreen> {
             const SizedBox(height: 16),
             Container(
               padding: const EdgeInsets.all(20),
-              decoration: AppTheme.cardDecoration,
+              decoration: AppTheme.cardDecorationOf(context),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
@@ -222,27 +216,25 @@ class _StatsScreenState extends State<StatsScreen> {
                     children: [
                       Icon(
                         Icons.access_time,
-                        color: AppTheme.primaryColor,
+                        color: Theme.of(context).colorScheme.primary,
                         size: 20,
                       ),
                       const SizedBox(width: 8),
                       Text(
                         'Latest Memory',
-                        style: AppTheme.subheadingStyle.copyWith(fontSize: 16),
+                        style: Theme.of(context).textTheme.titleMedium,
                       ),
                     ],
                   ),
                   const SizedBox(height: 12),
                   Text(
                     _memories.last.title,
-                    style: AppTheme.bodyStyle.copyWith(
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: Theme.of(context).textTheme.titleMedium,
                   ),
                   const SizedBox(height: 4),
                   Text(
                     DateFormat('MMMM d, yyyy').format(_memories.last.date),
-                    style: AppTheme.captionStyle,
+                    style: Theme.of(context).textTheme.bodyMedium,
                   ),
                   if (oldestMem != null) ...[
                     const SizedBox(height: 16),
@@ -250,28 +242,25 @@ class _StatsScreenState extends State<StatsScreen> {
                       children: [
                         Icon(
                           Icons.history,
-                          color: AppTheme.secondaryColor,
+                          color: Theme.of(context).colorScheme.secondary,
                           size: 20,
                         ),
                         const SizedBox(width: 8),
                         Text(
                           'First Memory',
-                          style:
-                              AppTheme.subheadingStyle.copyWith(fontSize: 16),
+                          style: Theme.of(context).textTheme.titleMedium,
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
                     Text(
                       oldestMem.title,
-                      style: AppTheme.bodyStyle.copyWith(
-                        fontWeight: FontWeight.w600,
-                      ),
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                     const SizedBox(height: 4),
                     Text(
                       DateFormat('MMMM d, yyyy').format(oldestMem.date),
-                      style: AppTheme.captionStyle,
+                      style: Theme.of(context).textTheme.bodyMedium,
                     ),
                   ],
                 ],
@@ -295,19 +284,19 @@ class _StatsScreenState extends State<StatsScreen> {
           const SizedBox(height: 16),
           Container(
             padding: const EdgeInsets.all(20),
-            decoration: AppTheme.cardDecoration,
+            decoration: AppTheme.cardDecorationOf(context),
             child: Column(
               children: [
                 Row(
                   children: [
                     Icon(
                       Icons.timeline,
-                      color: AppTheme.primaryColor,
+                      color: Theme.of(context).colorScheme.primary,
                     ),
                     const SizedBox(width: 8),
                     Text(
                       'Memory Journey',
-                      style: AppTheme.subheadingStyle.copyWith(fontSize: 16),
+                      style: Theme.of(context).textTheme.titleMedium,
                     ),
                   ],
                 ),
@@ -323,21 +312,22 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Widget _buildLocationItem(MapEntry<String, int> location) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Container(
       margin: const EdgeInsets.only(bottom: 8),
       padding: const EdgeInsets.all(16),
-      decoration: AppTheme.cardDecoration,
+      decoration: AppTheme.cardDecorationOf(context),
       child: Row(
         children: [
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withValues(alpha: 0.1),
+              color: colorScheme.primary.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
               Icons.location_on,
-              color: AppTheme.primaryColor,
+              color: colorScheme.primary,
               size: 20,
             ),
           ),
@@ -348,13 +338,11 @@ class _StatsScreenState extends State<StatsScreen> {
               children: [
                 Text(
                   location.key,
-                  style: AppTheme.bodyStyle.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: Theme.of(context).textTheme.titleMedium,
                 ),
                 Text(
                   '${location.value} ${location.value == 1 ? 'memory' : 'memories'}',
-                  style: AppTheme.captionStyle,
+                  style: Theme.of(context).textTheme.bodyMedium,
                 ),
               ],
             ),
@@ -367,10 +355,10 @@ class _StatsScreenState extends State<StatsScreen> {
             ),
             child: Text(
               location.value.toString(),
-              style: AppTheme.captionStyle.copyWith(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-              ),
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: Colors.white,
+                    fontWeight: FontWeight.bold,
+                  ),
             ),
           ),
         ],
@@ -395,7 +383,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 width: 80,
                 child: Text(
                   entry.key,
-                  style: AppTheme.captionStyle.copyWith(fontSize: 12),
+                  style: Theme.of(context).textTheme.bodySmall,
                 ),
               ),
               const SizedBox(width: 16),
@@ -403,7 +391,8 @@ class _StatsScreenState extends State<StatsScreen> {
                 child: Container(
                   height: 8,
                   decoration: BoxDecoration(
-                    color: Colors.grey[200],
+                    color:
+                        Theme.of(context).colorScheme.surfaceContainerHighest,
                     borderRadius: BorderRadius.circular(4),
                   ),
                   child: FractionallySizedBox(
@@ -421,9 +410,7 @@ class _StatsScreenState extends State<StatsScreen> {
               const SizedBox(width: 8),
               Text(
                 entry.value.toString(),
-                style: AppTheme.captionStyle.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
+                style: Theme.of(context).textTheme.labelLarge,
               ),
             ],
           ),

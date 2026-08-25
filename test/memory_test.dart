@@ -21,6 +21,14 @@ void main() {
       expect(restored.imageUrl, sample.imageUrl);
       expect(restored.date, sample.date);
       expect(restored.location, sample.location);
+      expect(restored.isFavorite, isFalse);
+    });
+
+    test('preserves favorite flag in JSON', () {
+      final favorite = sample.copyWith(isFavorite: true);
+      final restored = Memory.fromJson(favorite.toJson());
+      expect(restored.isFavorite, isTrue);
+      expect(Memory.fromJson(sample.toJson()).isFavorite, isFalse);
     });
 
     test('matchesQuery searches title, description, and location', () {
