@@ -14,7 +14,7 @@ This Flutter web application is configured for deployment on Vercel with the fol
 
 1. **Framework Detection**: Vercel automatically detects this as a Flutter project
 2. **Install Dependencies**: `flutter pub get`
-3. **Build**: `flutter build web --release --web-renderer html --base-href /`
+3. **Build**: `flutter build web --release --web-renderer canvaskit --base-href /`
 4. **Output**: Built files are served from `build/web/` directory
 
 ### Key Features
@@ -37,7 +37,7 @@ If you encounter 404 errors:
 To test the build locally:
 
 ```bash
-flutter build web --release --web-renderer html
+flutter build web --release --web-renderer canvaskit
 cd build/web
 python -m http.server 8000
 ```

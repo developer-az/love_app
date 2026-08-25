@@ -10,10 +10,24 @@ class MemoryService {
 
   Future<List<Memory>> getMemories() async {
     final String? memoriesJson = _prefs.getString(_storageKey);
-    if (memoriesJson == null) return [];
+    if (memoriesJson == null || memoriesJson.isEmpty) return [];
 
-    final List<dynamic> memoriesList = json.decode(memoriesJson);
-    return memoriesList.map((json) => Memory.fromJson(json)).toList();
+    try {
+      final decoded = json.decode(memoriesJson);
+      if (decoded is! List) return [];
+      return decoded.map(Memory.tryFromJson).whereType<Memory>().toList();
+    } catch (_) {
+      return [];
+    }
+  }
+
+  Future<Memory?> getMemoryById(String id) async {
+    final memories = await getMemories();
+    try {
+      return memories.firstWhere((memory) => memory.id == id);
+    } catch (_) {
+      return null;
+    }
   }
 
   Future<void> addMemory(Memory memory) async {

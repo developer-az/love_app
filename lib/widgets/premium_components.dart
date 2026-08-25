@@ -1,57 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:my_special_app/theme/app_theme.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 /// Premium reusable components for the app
 class PremiumComponents {
-  
   /// Premium search bar with glassmorphism effect
   static Widget searchBar({
     required String hintText,
     required Function(String) onChanged,
+    TextEditingController? controller,
     VoidCallback? onTap,
   }) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withOpacity(0.2),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withOpacity(0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
-      child: TextField(
-        onChanged: onChanged,
-        onTap: onTap,
-        decoration: InputDecoration(
-          hintText: hintText,
-          prefixIcon: Icon(
-            Icons.search,
-            color: AppTheme.primaryColor,
-          ),
-          suffixIcon: Icon(
-            Icons.tune,
-            color: AppTheme.textSecondary,
-          ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
-          ),
-          hintStyle: AppTheme.captionStyle.copyWith(
-            color: AppTheme.textSecondary,
-          ),
-        ),
-        style: AppTheme.bodyStyle,
-      ),
+    return PremiumSearchBar(
+      hintText: hintText,
+      onChanged: onChanged,
+      controller: controller,
+      onTap: onTap,
     );
   }
 
@@ -108,7 +71,8 @@ class PremiumComponents {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: (color ?? AppTheme.primaryColor).withOpacity(0.1),
+                  color:
+                      (color ?? AppTheme.primaryColor).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -131,9 +95,7 @@ class PremiumComponents {
           ),
         ],
       ),
-    ).animate()
-        .fadeIn(duration: const Duration(milliseconds: 300))
-        .slideY(begin: 0.2, end: 0);
+    );
   }
 
   /// Premium floating action button with animation
@@ -155,10 +117,7 @@ class PremiumComponents {
           size: 28,
         ),
       ),
-    )
-        .animate()
-        .scale(delay: const Duration(milliseconds: 500))
-        .fadeIn(duration: const Duration(milliseconds: 300));
+    );
   }
 
   /// Premium loading indicator
@@ -179,9 +138,7 @@ class PremiumComponents {
               strokeWidth: 3,
             ),
           ),
-        )
-            .animate(onPlay: (controller) => controller.repeat())
-            .rotate(duration: const Duration(seconds: 2)),
+        ),
         if (message != null) ...[
           const SizedBox(height: 16),
           Text(
@@ -270,6 +227,97 @@ class PremiumComponents {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class PremiumSearchBar extends StatefulWidget {
+  final String hintText;
+  final ValueChanged<String> onChanged;
+  final TextEditingController? controller;
+  final VoidCallback? onTap;
+
+  const PremiumSearchBar({
+    super.key,
+    required this.hintText,
+    required this.onChanged,
+    this.controller,
+    this.onTap,
+  });
+
+  @override
+  State<PremiumSearchBar> createState() => _PremiumSearchBarState();
+}
+
+class _PremiumSearchBarState extends State<PremiumSearchBar> {
+  late final TextEditingController _controller;
+  late final bool _ownsController;
+
+  @override
+  void initState() {
+    super.initState();
+    _ownsController = widget.controller == null;
+    _controller = widget.controller ?? TextEditingController();
+    _controller.addListener(_handleTextChanged);
+  }
+
+  @override
+  void dispose() {
+    _controller.removeListener(_handleTextChanged);
+    if (_ownsController) {
+      _controller.dispose();
+    }
+    super.dispose();
+  }
+
+  void _handleTextChanged() {
+    if (mounted) setState(() {});
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+      child: TextField(
+        controller: _controller,
+        onChanged: widget.onChanged,
+        onTap: widget.onTap,
+        textInputAction: TextInputAction.search,
+        decoration: InputDecoration(
+          hintText: widget.hintText,
+          prefixIcon: const Icon(Icons.search, color: AppTheme.primaryColor),
+          suffixIcon: _controller.text.isEmpty
+              ? null
+              : IconButton(
+                  tooltip: 'Clear search',
+                  onPressed: () {
+                    _controller.clear();
+                    widget.onChanged('');
+                  },
+                  icon: const Icon(Icons.close, color: AppTheme.textSecondary),
+                ),
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide:
+                const BorderSide(color: AppTheme.primaryColor, width: 2),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
+          ),
+        ),
+        style: AppTheme.bodyStyle,
       ),
     );
   }

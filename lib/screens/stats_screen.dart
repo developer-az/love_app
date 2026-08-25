@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
-import '../theme/app_theme.dart';
-import '../widgets/premium_components.dart';
-import '../models/memory.dart';
-import '../services/memory_service.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
+import 'package:my_special_app/models/memory.dart';
+import 'package:my_special_app/services/memory_service.dart';
+import 'package:my_special_app/theme/app_theme.dart';
+import 'package:my_special_app/widgets/premium_components.dart';
 
 class StatsScreen extends StatefulWidget {
   final MemoryService memoryService;
@@ -19,6 +18,13 @@ class _StatsScreenState extends State<StatsScreen> {
   List<Memory> _memories = [];
   bool _isLoading = true;
 
+  Memory? _cachedOldestMemory;
+  Map<String, int>? _cachedMonthlyStats;
+  int? _cachedMaxCount;
+  List<MapEntry<String, int>>? _cachedTopLocations;
+  int? _cachedYearsActive;
+  bool _cacheValid = false;
+
   @override
   void initState() {
     super.initState();
@@ -26,17 +32,95 @@ class _StatsScreenState extends State<StatsScreen> {
   }
 
   Future<void> _loadStats() async {
-    setState(() => _isLoading = true);
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
     final memories = await widget.memoryService.getMemories();
+    if (!mounted) return;
     setState(() {
       _memories = memories;
       _isLoading = false;
+      _invalidateCache();
     });
+  }
+
+  void _invalidateCache() {
+    _cacheValid = false;
+    _cachedOldestMemory = null;
+    _cachedMonthlyStats = null;
+    _cachedMaxCount = null;
+    _cachedTopLocations = null;
+    _cachedYearsActive = null;
+  }
+
+  Memory? get oldestMemory {
+    if (!_cacheValid || _cachedOldestMemory == null) {
+      if (_memories.isNotEmpty) {
+        _cachedOldestMemory =
+            _memories.reduce((a, b) => a.date.isBefore(b.date) ? a : b);
+      }
+    }
+    return _cachedOldestMemory;
+  }
+
+  Map<String, int> get monthlyStats {
+    if (!_cacheValid || _cachedMonthlyStats == null) {
+      _cachedMonthlyStats = <String, int>{};
+      for (final memory in _memories) {
+        final monthKey = DateFormat('MMM yyyy').format(memory.date);
+        _cachedMonthlyStats![monthKey] =
+            (_cachedMonthlyStats![monthKey] ?? 0) + 1;
+      }
+      _cacheValid = true;
+    }
+    return _cachedMonthlyStats!;
+  }
+
+  int get maxCount {
+    if (_cachedMaxCount == null) {
+      final stats = monthlyStats;
+      _cachedMaxCount = stats.values.isEmpty
+          ? 1
+          : stats.values.reduce((a, b) => a > b ? a : b);
+    }
+    return _cachedMaxCount!;
+  }
+
+  List<MapEntry<String, int>> get topLocations {
+    if (_cachedTopLocations == null) {
+      final locationCounts = <String, int>{};
+      for (final memory in _memories) {
+        locationCounts[memory.location] =
+            (locationCounts[memory.location] ?? 0) + 1;
+      }
+
+      final sorted = locationCounts.entries.toList()
+        ..sort((a, b) => b.value.compareTo(a.value));
+
+      _cachedTopLocations = sorted.take(5).toList();
+    }
+    return _cachedTopLocations!;
+  }
+
+  int get yearsActive {
+    if (_cachedYearsActive == null) {
+      if (_memories.isEmpty) {
+        _cachedYearsActive = 0;
+      } else {
+        _cachedYearsActive = _memories.map((m) => m.date.year).toSet().length;
+      }
+    }
+    return _cachedYearsActive!;
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF8FAFC),
+        title: const Text('Memory Statistics'),
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -48,78 +132,31 @@ class _StatsScreenState extends State<StatsScreen> {
             ],
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              // Header
-              Container(
-                padding: const EdgeInsets.all(24),
-                child: Row(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.arrow_back),
-                        color: AppTheme.textColor,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'Memory Statistics',
-                        style: AppTheme.titleStyle,
-                      ),
-                    ),
-                  ],
+        child: _isLoading
+            ? Center(
+                child: PremiumComponents.loadingIndicator(
+                  message: 'Loading your memory insights...',
                 ),
-              ).animate().fadeIn().slideY(begin: -0.3, end: 0),
-
-              // Content
-              Expanded(
-                child: _isLoading
-                    ? Center(
-                        child: PremiumComponents.loadingIndicator(
-                          message: 'Loading your memory insights...',
-                        ),
-                      )
-                    : _buildStatsContent(),
-              ),
-            ],
-          ),
-        ),
+              )
+            : _buildStatsContent(),
       ),
     );
   }
 
   Widget _buildStatsContent() {
     final totalMemories = _memories.length;
+    final now = DateTime.now();
     final thisMonthMemories = _memories
-        .where((m) =>
-            m.date.month == DateTime.now().month &&
-            m.date.year == DateTime.now().year)
+        .where((m) => m.date.month == now.month && m.date.year == now.year)
         .length;
     final uniqueLocations = _memories.map((m) => m.location).toSet().length;
-    final oldestMemory = _memories.isEmpty
-        ? null
-        : _memories.reduce((a, b) => a.date.isBefore(b.date) ? a : b);
+    final oldestMem = oldestMemory;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Overview Cards
           PremiumComponents.sectionHeader(
             title: 'Overview',
             subtitle: 'Your memory collection at a glance',
@@ -161,17 +198,14 @@ class _StatsScreenState extends State<StatsScreen> {
               Expanded(
                 child: PremiumComponents.statsCard(
                   title: 'Years Active',
-                  value: _getYearsActive().toString(),
+                  value: yearsActive.toString(),
                   icon: Icons.timeline,
                   color: Colors.orange,
                 ),
               ),
             ],
           ),
-
           const SizedBox(height: 32),
-
-          // Recent Activity
           if (_memories.isNotEmpty) ...[
             PremiumComponents.sectionHeader(
               title: 'Recent Activity',
@@ -210,7 +244,7 @@ class _StatsScreenState extends State<StatsScreen> {
                     DateFormat('MMMM d, yyyy').format(_memories.last.date),
                     style: AppTheme.captionStyle,
                   ),
-                  if (oldestMemory != null) ...[
+                  if (oldestMem != null) ...[
                     const SizedBox(height: 16),
                     Row(
                       children: [
@@ -222,45 +256,38 @@ class _StatsScreenState extends State<StatsScreen> {
                         const SizedBox(width: 8),
                         Text(
                           'First Memory',
-                          style: AppTheme.subheadingStyle.copyWith(fontSize: 16),
+                          style:
+                              AppTheme.subheadingStyle.copyWith(fontSize: 16),
                         ),
                       ],
                     ),
                     const SizedBox(height: 12),
                     Text(
-                      oldestMemory!.title,
+                      oldestMem.title,
                       style: AppTheme.bodyStyle.copyWith(
                         fontWeight: FontWeight.w600,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      DateFormat('MMMM d, yyyy').format(oldestMemory!.date),
+                      DateFormat('MMMM d, yyyy').format(oldestMem.date),
                       style: AppTheme.captionStyle,
                     ),
                   ],
                 ],
               ),
-            ).animate(delay: const Duration(milliseconds: 200))
-                .fadeIn()
-                .slideY(begin: 0.3, end: 0),
+            ),
           ],
-
           const SizedBox(height: 32),
-
-          // Location Stats
-          if (_getTopLocations().isNotEmpty) ...[
+          if (topLocations.isNotEmpty) ...[
             PremiumComponents.sectionHeader(
               title: 'Top Locations',
               subtitle: 'Places with the most memories',
             ),
             const SizedBox(height: 16),
-            ..._getTopLocations().map((location) => _buildLocationItem(location)),
+            ...topLocations.map((location) => _buildLocationItem(location)),
           ],
-
           const SizedBox(height: 32),
-
-          // Memory Timeline
           PremiumComponents.sectionHeader(
             title: 'Memory Timeline',
             subtitle: 'How your collection grew over time',
@@ -288,10 +315,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 _buildTimelineVisualization(),
               ],
             ),
-          ).animate(delay: const Duration(milliseconds: 400))
-              .fadeIn()
-              .slideY(begin: 0.3, end: 0),
-
+          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -308,7 +332,7 @@ class _StatsScreenState extends State<StatsScreen> {
           Container(
             padding: const EdgeInsets.all(8),
             decoration: BoxDecoration(
-              color: AppTheme.primaryColor.withOpacity(0.1),
+              color: AppTheme.primaryColor.withValues(alpha: 0.1),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Icon(
@@ -351,25 +375,18 @@ class _StatsScreenState extends State<StatsScreen> {
           ),
         ],
       ),
-    ).animate(delay: Duration(milliseconds: 100 * location.value))
-        .fadeIn()
-        .slideX(begin: 0.3, end: 0);
+    );
   }
 
   Widget _buildTimelineVisualization() {
     if (_memories.isEmpty) return const SizedBox();
 
-    final monthlyStats = <String, int>{};
-    for (final memory in _memories) {
-      final monthKey = DateFormat('MMM yyyy').format(memory.date);
-      monthlyStats[monthKey] = (monthlyStats[monthKey] ?? 0) + 1;
-    }
-
-    final maxCount = monthlyStats.values.isEmpty ? 1 : monthlyStats.values.reduce((a, b) => a > b ? a : b);
+    final stats = monthlyStats;
+    final maxCountValue = maxCount;
 
     return Column(
-      children: monthlyStats.entries.map((entry) {
-        final percentage = entry.value / maxCount;
+      children: stats.entries.map((entry) {
+        final percentage = entry.value / maxCountValue;
         return Container(
           margin: const EdgeInsets.only(bottom: 12),
           child: Row(
@@ -413,23 +430,5 @@ class _StatsScreenState extends State<StatsScreen> {
         );
       }).toList(),
     );
-  }
-
-  int _getYearsActive() {
-    if (_memories.isEmpty) return 0;
-    final years = _memories.map((m) => m.date.year).toSet();
-    return years.length;
-  }
-
-  List<MapEntry<String, int>> _getTopLocations() {
-    final locationCounts = <String, int>{};
-    for (final memory in _memories) {
-      locationCounts[memory.location] = (locationCounts[memory.location] ?? 0) + 1;
-    }
-    
-    final sorted = locationCounts.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-    
-    return sorted.take(5).toList();
   }
 }
