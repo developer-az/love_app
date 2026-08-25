@@ -277,33 +277,16 @@ class _PremiumSearchBarState extends State<PremiumSearchBar> {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      decoration: BoxDecoration(
-        gradient: AppTheme.cardGradient,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
-          width: 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: 0.1),
-            blurRadius: 10,
-            offset: const Offset(0, 4),
-          ),
-        ],
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
       child: TextField(
         controller: _controller,
         onChanged: widget.onChanged,
         onTap: widget.onTap,
+        textInputAction: TextInputAction.search,
         decoration: InputDecoration(
           hintText: widget.hintText,
-          prefixIcon: Icon(
-            Icons.search,
-            color: AppTheme.primaryColor,
-          ),
+          prefixIcon: const Icon(Icons.search, color: AppTheme.primaryColor),
           suffixIcon: _controller.text.isEmpty
               ? null
               : IconButton(
@@ -312,18 +295,26 @@ class _PremiumSearchBarState extends State<PremiumSearchBar> {
                     _controller.clear();
                     widget.onChanged('');
                   },
-                  icon: Icon(
-                    Icons.close,
-                    color: AppTheme.textSecondary,
-                  ),
+                  icon: const Icon(Icons.close, color: AppTheme.textSecondary),
                 ),
-          border: InputBorder.none,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 20,
-            vertical: 16,
+          filled: true,
+          fillColor: Colors.white,
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
           ),
-          hintStyle: AppTheme.captionStyle.copyWith(
-            color: AppTheme.textSecondary,
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+          ),
+          focusedBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(16),
+            borderSide:
+                const BorderSide(color: AppTheme.primaryColor, width: 2),
+          ),
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 16,
+            vertical: 12,
           ),
         ),
         style: AppTheme.bodyStyle,

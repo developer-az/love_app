@@ -102,18 +102,15 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
             stretch: true,
             backgroundColor: AppTheme.primaryColor,
             flexibleSpace: FlexibleSpaceBar(
-              background: Hero(
-                tag: 'memory-${_memory.id}',
-                child: GestureDetector(
-                  onTap: () => _showImageViewer(context),
-                  child: MemoryPhoto(
-                    imageUrl: _memory.imageUrl,
-                    fit: BoxFit.cover,
-                    errorWidget: Container(
-                      color: Colors.grey[200],
-                      child:
-                          const Icon(Icons.error, size: 50, color: Colors.grey),
-                    ),
+              background: GestureDetector(
+                onTap: () => _showImageViewer(context),
+                child: MemoryPhoto(
+                  imageUrl: _memory.imageUrl,
+                  fit: BoxFit.cover,
+                  errorWidget: Container(
+                    color: Colors.grey[200],
+                    child:
+                        const Icon(Icons.error, size: 50, color: Colors.grey),
                   ),
                 ),
               ),

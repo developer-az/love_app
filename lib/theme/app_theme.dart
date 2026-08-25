@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // Premium color palette - Modern and sophisticated
@@ -14,7 +13,6 @@ class AppTheme {
   static const Color cardColor = Colors.white;
   static const Color shadowColor = Color(0x10000000);
 
-  // Gradient colors
   static const LinearGradient primaryGradient = LinearGradient(
     colors: [primaryColor, secondaryColor],
     begin: Alignment.topLeft,
@@ -27,79 +25,63 @@ class AppTheme {
     end: Alignment.bottomCenter,
   );
 
-  // Text styles with Google Fonts
-  static TextStyle get headingStyle => GoogleFonts.inter(
-        fontSize: 28,
-        fontWeight: FontWeight.bold,
-        color: textColor,
-        letterSpacing: -0.5,
-      );
+  static const TextStyle headingStyle = TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.bold,
+    color: textColor,
+    letterSpacing: -0.5,
+  );
 
-  static TextStyle get subheadingStyle => GoogleFonts.inter(
-        fontSize: 20,
-        fontWeight: FontWeight.w600,
-        color: textColor,
-        letterSpacing: -0.3,
-      );
+  static const TextStyle subheadingStyle = TextStyle(
+    fontSize: 20,
+    fontWeight: FontWeight.w600,
+    color: textColor,
+    letterSpacing: -0.3,
+  );
 
-  static TextStyle get bodyStyle => GoogleFonts.inter(
-        fontSize: 16,
-        color: textColor,
-        height: 1.5,
-      );
+  static const TextStyle bodyStyle = TextStyle(
+    fontSize: 16,
+    color: textColor,
+    height: 1.5,
+  );
 
-  static TextStyle get captionStyle => GoogleFonts.inter(
-        fontSize: 14,
-        color: textSecondary,
-        height: 1.4,
-      );
+  static const TextStyle captionStyle = TextStyle(
+    fontSize: 14,
+    color: textSecondary,
+    height: 1.4,
+  );
 
-  static TextStyle get titleStyle => GoogleFonts.inter(
-        fontSize: 24,
-        fontWeight: FontWeight.w700,
-        color: textColor,
-        letterSpacing: -0.4,
-      );
+  static const TextStyle titleStyle = TextStyle(
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+    color: textColor,
+    letterSpacing: -0.4,
+  );
 
-  // Enhanced card decoration with glassmorphism
   static BoxDecoration get cardDecoration => BoxDecoration(
-        gradient: cardGradient,
+        color: surfaceColor,
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.2),
-          width: 1,
-        ),
-        boxShadow: [
+        boxShadow: const [
           BoxShadow(
             color: shadowColor,
-            blurRadius: 20,
-            offset: const Offset(0, 8),
-            spreadRadius: 0,
-          ),
-          BoxShadow(
-            color: Colors.white.withValues(alpha: 0.8),
-            blurRadius: 0,
-            offset: const Offset(0, 1),
-            spreadRadius: 0,
+            blurRadius: 16,
+            offset: Offset(0, 6),
           ),
         ],
       );
 
-  // Premium button style
   static ButtonStyle get primaryButtonStyle => ElevatedButton.styleFrom(
         backgroundColor: primaryColor,
         foregroundColor: Colors.white,
         padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        elevation: 4,
-        shadowColor: primaryColor.withValues(alpha: 0.3),
-        textStyle: GoogleFonts.inter(
+        elevation: 2,
+        textStyle: const TextStyle(
           fontWeight: FontWeight.w600,
           fontSize: 16,
         ),
       );
 
-  // Gradient button style
   static BoxDecoration get gradientButtonDecoration => BoxDecoration(
         gradient: primaryGradient,
         borderRadius: BorderRadius.circular(16),
@@ -112,41 +94,28 @@ class AppTheme {
         ],
       );
 
-  // Premium input decoration
   static InputDecoration get textFieldDecoration => InputDecoration(
         filled: true,
         fillColor: surfaceColor,
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide.none,
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: BorderSide(
-            color: Colors.grey[300]!,
-            width: 1,
-          ),
+          borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: primaryColor,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: primaryColor, width: 2),
         ),
         errorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: Colors.red,
-            width: 1,
-          ),
+          borderSide: const BorderSide(color: Colors.red),
         ),
         focusedErrorBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(16),
-          borderSide: const BorderSide(
-            color: Colors.red,
-            width: 2,
-          ),
+          borderSide: const BorderSide(color: Colors.red, width: 2),
         ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 20,
@@ -154,22 +123,15 @@ class AppTheme {
         ),
       );
 
-  // App bar theme
-  static AppBarTheme get appBarTheme => AppBarTheme(
-        backgroundColor: Colors.transparent,
+  static AppBarTheme get appBarTheme => const AppBarTheme(
+        backgroundColor: Color(0xFFF8FAFC),
         elevation: 0,
         scrolledUnderElevation: 0,
         foregroundColor: textColor,
-        titleTextStyle: GoogleFonts.inter(
-          fontSize: 22,
-          fontWeight: FontWeight.w700,
-          color: textColor,
-          letterSpacing: -0.4,
-        ),
+        titleTextStyle: titleStyle,
         centerTitle: true,
       );
 
-  // Theme data
   static ThemeData get lightTheme => ThemeData(
         useMaterial3: true,
         colorScheme: ColorScheme.fromSeed(
@@ -181,7 +143,7 @@ class AppTheme {
         ),
         scaffoldBackgroundColor: backgroundColor,
         appBarTheme: appBarTheme,
-        textTheme: TextTheme(
+        textTheme: const TextTheme(
           headlineLarge: headingStyle,
           headlineMedium: subheadingStyle,
           bodyLarge: bodyStyle,
@@ -196,30 +158,31 @@ class AppTheme {
           fillColor: surfaceColor,
           border: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
           ),
           enabledBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide.none,
+            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
           ),
           focusedBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: primaryColor, width: 2),
+            borderSide: const BorderSide(color: primaryColor, width: 2),
           ),
           errorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Colors.red, width: 1),
+            borderSide: const BorderSide(color: Colors.red),
           ),
           focusedErrorBorder: OutlineInputBorder(
             borderRadius: BorderRadius.circular(16),
-            borderSide: BorderSide(color: Colors.red, width: 2),
+            borderSide: const BorderSide(color: Colors.red, width: 2),
           ),
           contentPadding:
               const EdgeInsets.symmetric(horizontal: 20, vertical: 16),
-          hintStyle: captionStyle.copyWith(color: textSecondary),
+          hintStyle: captionStyle,
         ),
         cardTheme: CardThemeData(
-          elevation: 0,
+          elevation: 1,
+          color: surfaceColor,
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(20),
           ),

@@ -108,9 +108,9 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
       final picker = ImagePicker();
       final file = await picker.pickImage(
         source: source,
-        maxWidth: 1600,
-        maxHeight: 1600,
-        imageQuality: 80,
+        maxWidth: 900,
+        maxHeight: 900,
+        imageQuality: 60,
       );
       if (file == null) return;
 
@@ -150,10 +150,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
     try {
       final existing = widget.existingMemory;
       final typedUrl = _imageUrlController.text.trim();
-      final imageUrl = _pickedImage ??
-          (typedUrl.isNotEmpty
-              ? typedUrl
-              : 'https://picsum.photos/600/800?random=${DateTime.now().millisecondsSinceEpoch}');
+      final imageUrl = _pickedImage ?? typedUrl;
 
       final memory = Memory(
         id: existing?.id ?? const Uuid().v4(),

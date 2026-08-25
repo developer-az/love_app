@@ -25,50 +25,62 @@ class MemoryPhoto extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fallback = errorWidget ??
-        Container(
-          height: height,
-          width: width,
-          color: Colors.grey[200],
-          child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+        ColoredBox(
+          color: const Color(0xFFF3F4F6),
+          child: SizedBox(
+            height: height,
+            width: width,
+            child: const Icon(Icons.broken_image_outlined, color: Colors.grey),
+          ),
         );
+
+    Widget framed(Widget child) {
+      if (height == null && width == null) return child;
+      return SizedBox(height: height, width: width, child: child);
+    }
 
     if (imageUrl.startsWith('data:image')) {
       try {
         final comma = imageUrl.indexOf(',');
-        if (comma == -1) return fallback;
+        if (comma == -1) return framed(fallback);
         final bytes = base64Decode(imageUrl.substring(comma + 1));
-        return Image.memory(
-          bytes,
-          fit: fit,
-          height: height,
-          width: width,
-          gaplessPlayback: true,
-          errorBuilder: (_, __, ___) => fallback,
+        return framed(
+          Image.memory(
+            bytes,
+            fit: fit,
+            width: double.infinity,
+            height: double.infinity,
+            cacheWidth: 800,
+            gaplessPlayback: true,
+            filterQuality: FilterQuality.medium,
+            errorBuilder: (_, __, ___) => fallback,
+          ),
         );
       } catch (_) {
-        return fallback;
+        return framed(fallback);
       }
     }
 
     if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) {
-      return CachedNetworkImage(
-        imageUrl: imageUrl,
-        fit: fit,
-        height: height,
-        width: width,
-        placeholder: (context, url) =>
-            placeholder ??
-            Container(
-              height: height,
-              width: width,
-              color: Colors.grey[200],
-              child: const Center(child: CircularProgressIndicator()),
-            ),
-        errorWidget: (context, url, error) => fallback,
+      return framed(
+        CachedNetworkImage(
+          imageUrl: imageUrl,
+          fit: fit,
+          width: double.infinity,
+          height: double.infinity,
+          memCacheWidth: 800,
+          placeholder: (context, url) =>
+              placeholder ??
+              const ColoredBox(
+                color: Color(0xFFF3F4F6),
+                child: Center(child: CircularProgressIndicator(strokeWidth: 2)),
+              ),
+          errorWidget: (context, url, error) => fallback,
+        ),
       );
     }
 
-    return fallback;
+    return framed(fallback);
   }
 }
 

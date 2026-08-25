@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:google_fonts/google_fonts.dart';
 import 'package:my_special_app/main.dart';
 import 'package:my_special_app/models/memory.dart';
 import 'package:my_special_app/screens/add_memory_screen.dart';
@@ -10,10 +9,6 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-
-  setUpAll(() {
-    GoogleFonts.config.allowRuntimeFetching = false;
-  });
 
   Future<MemoryService> createService({List<Memory> seed = const []}) async {
     SharedPreferences.setMockInitialValues({});
