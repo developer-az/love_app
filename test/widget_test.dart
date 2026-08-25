@@ -52,6 +52,7 @@ void main() {
     expect(find.text('Beach Day'), findsOneWidget);
     expect(find.text('Santa Monica'), findsOneWidget);
 
+    await tester.ensureVisible(find.text('Beach Day'));
     await tester.tap(find.text('Beach Day'));
     await tester.pump();
     await tester.pump(const Duration(seconds: 1));

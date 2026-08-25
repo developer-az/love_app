@@ -8,12 +8,14 @@ class PremiumComponents {
     required String hintText,
     required Function(String) onChanged,
     TextEditingController? controller,
+    FocusNode? focusNode,
     VoidCallback? onTap,
   }) {
     return PremiumSearchBar(
       hintText: hintText,
       onChanged: onChanged,
       controller: controller,
+      focusNode: focusNode,
       onTap: onTap,
     );
   }
@@ -24,26 +26,34 @@ class PremiumComponents {
     required bool isSelected,
     required VoidCallback onTap,
   }) {
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-        decoration: BoxDecoration(
-          gradient: isSelected ? AppTheme.primaryGradient : null,
-          color: isSelected ? null : Colors.grey[100],
-          borderRadius: BorderRadius.circular(20),
-          border: Border.all(
-            color: isSelected ? Colors.transparent : Colors.grey[300]!,
+    return Builder(
+      builder: (context) {
+        final colorScheme = Theme.of(context).colorScheme;
+        return GestureDetector(
+          onTap: onTap,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            decoration: BoxDecoration(
+              gradient: isSelected ? AppTheme.primaryGradient : null,
+              color: isSelected ? null : colorScheme.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: isSelected
+                    ? Colors.transparent
+                    : colorScheme.outlineVariant,
+              ),
+            ),
+            child: Text(
+              label,
+              style: Theme.of(context).textTheme.labelLarge?.copyWith(
+                    color: isSelected ? Colors.white : colorScheme.onSurface,
+                    fontWeight:
+                        isSelected ? FontWeight.w600 : FontWeight.normal,
+                  ),
+            ),
           ),
-        ),
-        child: Text(
-          label,
-          style: AppTheme.captionStyle.copyWith(
-            color: isSelected ? Colors.white : AppTheme.textSecondary,
-            fontWeight: isSelected ? FontWeight.w600 : FontWeight.normal,
-          ),
-        ),
-      ),
+        );
+      },
     );
   }
 
@@ -54,47 +64,37 @@ class PremiumComponents {
     required IconData icon,
     Color? color,
   }) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: AppTheme.cardDecoration,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+    return Builder(
+      builder: (context) {
+        final accent = color ?? Theme.of(context).colorScheme.primary;
+        return Container(
+          padding: const EdgeInsets.all(20),
+          decoration: AppTheme.cardDecorationOf(context),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Icon(
-                icon,
-                color: color ?? AppTheme.primaryColor,
-                size: 24,
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Icon(icon, color: accent, size: 24),
+                  Container(
+                    padding: const EdgeInsets.all(8),
+                    decoration: BoxDecoration(
+                      color: accent.withValues(alpha: 0.1),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Icon(Icons.trending_up, color: accent, size: 16),
+                  ),
+                ],
               ),
-              Container(
-                padding: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color:
-                      (color ?? AppTheme.primaryColor).withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: Icon(
-                  Icons.trending_up,
-                  color: color ?? AppTheme.primaryColor,
-                  size: 16,
-                ),
-              ),
+              const SizedBox(height: 16),
+              Text(value, style: Theme.of(context).textTheme.headlineSmall),
+              const SizedBox(height: 4),
+              Text(title, style: Theme.of(context).textTheme.bodyMedium),
             ],
           ),
-          const SizedBox(height: 16),
-          Text(
-            value,
-            style: AppTheme.headingStyle.copyWith(fontSize: 24),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            title,
-            style: AppTheme.captionStyle,
-          ),
-        ],
-      ),
+        );
+      },
     );
   }
 
@@ -111,43 +111,43 @@ class PremiumComponents {
         backgroundColor: Colors.transparent,
         elevation: 0,
         tooltip: tooltip,
-        child: Icon(
-          icon,
-          color: Colors.white,
-          size: 28,
-        ),
+        child: Icon(icon, color: Colors.white, size: 28),
       ),
     );
   }
 
   /// Premium loading indicator
   static Widget loadingIndicator({String? message}) {
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        Container(
-          width: 60,
-          height: 60,
-          decoration: BoxDecoration(
-            gradient: AppTheme.primaryGradient,
-            borderRadius: BorderRadius.circular(30),
-          ),
-          child: const Center(
-            child: CircularProgressIndicator(
-              color: Colors.white,
-              strokeWidth: 3,
+    return Builder(
+      builder: (context) {
+        return Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              width: 60,
+              height: 60,
+              decoration: BoxDecoration(
+                gradient: AppTheme.primaryGradient,
+                borderRadius: BorderRadius.circular(30),
+              ),
+              child: const Center(
+                child: CircularProgressIndicator(
+                  color: Colors.white,
+                  strokeWidth: 3,
+                ),
+              ),
             ),
-          ),
-        ),
-        if (message != null) ...[
-          const SizedBox(height: 16),
-          Text(
-            message,
-            style: AppTheme.captionStyle,
-            textAlign: TextAlign.center,
-          ),
-        ],
-      ],
+            if (message != null) ...[
+              const SizedBox(height: 16),
+              Text(
+                message,
+                style: Theme.of(context).textTheme.bodyMedium,
+                textAlign: TextAlign.center,
+              ),
+            ],
+          ],
+        );
+      },
     );
   }
 
@@ -161,11 +161,7 @@ class PremiumComponents {
     return SnackBar(
       content: Row(
         children: [
-          Icon(
-            icon,
-            color: Colors.white,
-            size: 20,
-          ),
+          Icon(icon, color: Colors.white, size: 20),
           const SizedBox(width: 8),
           Expanded(
             child: Text(
@@ -177,9 +173,7 @@ class PremiumComponents {
       ),
       backgroundColor: backgroundColor ?? AppTheme.primaryColor,
       behavior: SnackBarBehavior.floating,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-      ),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       duration: duration,
       margin: const EdgeInsets.all(16),
     );
@@ -191,43 +185,44 @@ class PremiumComponents {
     String? subtitle,
     VoidCallback? onSeeAll,
   }) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  title,
-                  style: AppTheme.subheadingStyle,
-                ),
-                if (subtitle != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    subtitle,
-                    style: AppTheme.captionStyle,
-                  ),
-                ],
-              ],
-            ),
-          ),
-          if (onSeeAll != null)
-            TextButton(
-              onPressed: onSeeAll,
-              child: Text(
-                'See All',
-                style: AppTheme.bodyStyle.copyWith(
-                  color: AppTheme.primaryColor,
-                  fontWeight: FontWeight.w600,
+    return Builder(
+      builder: (context) {
+        return Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: Theme.of(context).textTheme.titleLarge),
+                    if (subtitle != null) ...[
+                      const SizedBox(height: 4),
+                      Text(
+                        subtitle,
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ),
-        ],
-      ),
+              if (onSeeAll != null)
+                TextButton(
+                  onPressed: onSeeAll,
+                  child: Text(
+                    'See All',
+                    style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Theme.of(context).colorScheme.primary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                  ),
+                ),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -236,6 +231,7 @@ class PremiumSearchBar extends StatefulWidget {
   final String hintText;
   final ValueChanged<String> onChanged;
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final VoidCallback? onTap;
 
   const PremiumSearchBar({
@@ -243,6 +239,7 @@ class PremiumSearchBar extends StatefulWidget {
     required this.hintText,
     required this.onChanged,
     this.controller,
+    this.focusNode,
     this.onTap,
   });
 
@@ -277,47 +274,40 @@ class _PremiumSearchBarState extends State<PremiumSearchBar> {
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-      child: TextField(
-        controller: _controller,
-        onChanged: widget.onChanged,
-        onTap: widget.onTap,
-        textInputAction: TextInputAction.search,
-        decoration: InputDecoration(
-          hintText: widget.hintText,
-          prefixIcon: const Icon(Icons.search, color: AppTheme.primaryColor),
-          suffixIcon: _controller.text.isEmpty
-              ? null
-              : IconButton(
-                  tooltip: 'Clear search',
-                  onPressed: () {
-                    _controller.clear();
-                    widget.onChanged('');
-                  },
-                  icon: const Icon(Icons.close, color: AppTheme.textSecondary),
-                ),
-          filled: true,
-          fillColor: Colors.white,
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
+      child: Semantics(
+        textField: true,
+        label: 'Search memories',
+        child: TextField(
+          controller: _controller,
+          focusNode: widget.focusNode,
+          onChanged: widget.onChanged,
+          onTap: widget.onTap,
+          textInputAction: TextInputAction.search,
+          autocorrect: false,
+          decoration: InputDecoration(
+            hintText: widget.hintText,
+            prefixIcon: Icon(Icons.search, color: colorScheme.primary),
+            suffixIcon: _controller.text.isEmpty
+                ? null
+                : IconButton(
+                    tooltip: 'Clear search',
+                    onPressed: () {
+                      _controller.clear();
+                      widget.onChanged('');
+                    },
+                    icon: Icon(
+                      Icons.close,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+            filled: true,
+            fillColor: Theme.of(context).cardTheme.color ?? colorScheme.surface,
           ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide: const BorderSide(color: Color(0xFFE5E7EB)),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(16),
-            borderSide:
-                const BorderSide(color: AppTheme.primaryColor, width: 2),
-          ),
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 16,
-            vertical: 12,
-          ),
+          style: Theme.of(context).textTheme.bodyLarge,
         ),
-        style: AppTheme.bodyStyle,
       ),
     );
   }

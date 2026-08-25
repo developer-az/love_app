@@ -5,6 +5,7 @@ class Memory {
   final String imageUrl;
   final DateTime date;
   final String location;
+  final bool isFavorite;
 
   Memory({
     required this.id,
@@ -13,6 +14,7 @@ class Memory {
     required this.imageUrl,
     required this.date,
     required this.location,
+    this.isFavorite = false,
   });
 
   bool matchesQuery(String query) {
@@ -30,6 +32,7 @@ class Memory {
     String? imageUrl,
     DateTime? date,
     String? location,
+    bool? isFavorite,
   }) {
     return Memory(
       id: id ?? this.id,
@@ -38,6 +41,7 @@ class Memory {
       imageUrl: imageUrl ?? this.imageUrl,
       date: date ?? this.date,
       location: location ?? this.location,
+      isFavorite: isFavorite ?? this.isFavorite,
     );
   }
 
@@ -57,6 +61,7 @@ class Memory {
       imageUrl: json['imageUrl']?.toString() ?? '',
       date: parsedDate,
       location: json['location']?.toString() ?? '',
+      isFavorite: json['isFavorite'] == true,
     );
   }
 
@@ -86,6 +91,14 @@ class Memory {
       'imageUrl': imageUrl,
       'date': date.toIso8601String(),
       'location': location,
+      'isFavorite': isFavorite,
     };
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) || other is Memory && other.id == id;
+
+  @override
+  int get hashCode => id.hashCode;
 }

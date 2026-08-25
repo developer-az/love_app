@@ -86,4 +86,35 @@ void main() {
     expect(memories, hasLength(1));
     expect(memories.single.id, 'good');
   });
+
+  test('keeps an in-memory cache across reads', () async {
+    await service.addMemory(memory(id: '1', title: 'Cached'));
+    final first = await service.getMemories();
+    final second = await service.getMemories();
+
+    expect(identical(first, second), isFalse);
+    expect(first.single.title, 'Cached');
+    expect(second.single.title, 'Cached');
+
+    await service.updateMemory(memory(id: '1', title: 'Updated'));
+    final third = await service.getMemories();
+    expect(third.single.title, 'Updated');
+  });
+
+  test('parseMemoriesJson skips junk', () {
+    expect(parseMemoriesJson('nope'), isEmpty);
+    expect(
+      parseMemoriesJson(json.encode([
+        {
+          'id': 'ok',
+          'title': 'Keep',
+          'description': 'd',
+          'imageUrl': '',
+          'date': '2024-01-01',
+          'location': 'Home',
+        },
+      ])),
+      hasLength(1),
+    );
+  });
 }

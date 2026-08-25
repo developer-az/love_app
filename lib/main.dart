@@ -2,14 +2,20 @@ import 'dart:ui' show PointerDeviceKind;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:flutter/rendering.dart';
+import 'package:flutter/services.dart';
 import 'package:my_special_app/models/memory.dart';
 import 'package:my_special_app/screens/add_memory_screen.dart';
 import 'package:my_special_app/screens/memory_detail_screen.dart';
 import 'package:my_special_app/screens/stats_screen.dart';
 import 'package:my_special_app/services/memory_service.dart';
+import 'package:my_special_app/state/memory_controller.dart';
 import 'package:my_special_app/theme/app_theme.dart';
-import 'package:my_special_app/widgets/memory_photo.dart';
+import 'package:my_special_app/utils/app_animations.dart';
+import 'package:my_special_app/utils/app_bootstrap.dart';
+import 'package:my_special_app/utils/haptics.dart';
+import 'package:my_special_app/widgets/memory_feed.dart';
+import 'package:my_special_app/widgets/motion.dart';
 import 'package:my_special_app/widgets/premium_components.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -21,36 +27,107 @@ class AppScrollBehavior extends MaterialScrollBehavior {
         PointerDeviceKind.stylus,
         PointerDeviceKind.trackpad,
       };
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(
+      parent: AlwaysScrollableScrollPhysics(),
+    );
+  }
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    if (kIsWeb) return child;
+    return super.buildOverscrollIndicator(context, child, details);
+  }
 }
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  configureAppPerformance();
   final prefs = await SharedPreferences.getInstance();
   final memoryService = MemoryService(prefs);
   runApp(MySpecialApp(memoryService: memoryService));
 }
 
-class MySpecialApp extends StatelessWidget {
+class MySpecialApp extends StatefulWidget {
   final MemoryService memoryService;
 
   const MySpecialApp({super.key, required this.memoryService});
 
   @override
+  State<MySpecialApp> createState() => _MySpecialAppState();
+}
+
+class _MySpecialAppState extends State<MySpecialApp>
+    with WidgetsBindingObserver {
+  late final MemoryController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    _controller = MemoryController(widget.memoryService);
+    _controller.load(showSpinner: true);
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _controller.load();
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'Cherished Memories',
-      theme: AppTheme.lightTheme,
-      debugShowCheckedModeBanner: false,
-      scrollBehavior: AppScrollBehavior(),
-      home: HomeScreen(memoryService: memoryService),
+    return MemoryScope(
+      controller: _controller,
+      child: ValueListenableBuilder<ThemeMode>(
+        valueListenable: _controller.themeListenable,
+        builder: (context, themeMode, _) {
+          return MaterialApp(
+            title: 'Cherished Memories',
+            theme: AppTheme.lightTheme,
+            darkTheme: AppTheme.darkTheme,
+            themeMode: themeMode,
+            themeAnimationDuration: AppAnimations.medium,
+            themeAnimationCurve: AppAnimations.inCurve,
+            debugShowCheckedModeBanner: false,
+            restorationScopeId: 'cherished_memories',
+            scrollBehavior: AppScrollBehavior(),
+            builder: (context, child) {
+              final media = MediaQuery.of(context);
+              return MediaQuery(
+                data: media.copyWith(
+                  textScaler: media.textScaler.clamp(
+                    minScaleFactor: 0.85,
+                    maxScaleFactor: 1.35,
+                  ),
+                ),
+                child: child ?? const SizedBox.shrink(),
+              );
+            },
+            home: const HomeScreen(),
+          );
+        },
+      ),
     );
   }
 }
 
 class HomeScreen extends StatefulWidget {
-  final MemoryService memoryService;
-
-  const HomeScreen({super.key, required this.memoryService});
+  const HomeScreen({super.key});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -58,111 +135,315 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
-  List<Memory> _memories = [];
-  List<Memory> _filteredMemories = [];
-  bool _isLoading = true;
-  String _searchQuery = '';
+  final FocusNode _searchFocus = FocusNode();
+  final FocusNode _shortcutsFocus = FocusNode();
+  final ScrollController _scrollController = ScrollController();
+  final ValueNotifier<bool> _fabVisible = ValueNotifier(true);
 
-  @override
-  void initState() {
-    super.initState();
-    _loadMemories(showSpinner: true);
-  }
+  MemoryController get _controller => MemoryScope.of(context);
 
   @override
   void dispose() {
     _searchController.dispose();
+    _searchFocus.dispose();
+    _shortcutsFocus.dispose();
+    _scrollController.dispose();
+    _fabVisible.dispose();
     super.dispose();
   }
 
-  Future<void> _loadMemories({bool showSpinner = false}) async {
-    if (showSpinner && mounted) {
-      setState(() => _isLoading = true);
-    }
-    final memories = await widget.memoryService.getMemories();
-    if (!mounted) return;
-    setState(() {
-      _memories = memories;
-      _isLoading = false;
-      _applyFilter(_searchQuery);
-    });
-  }
-
   Future<void> _openAddMemory() async {
+    lightHaptic();
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) =>
-            AddMemoryScreen(memoryService: widget.memoryService),
-      ),
+      fadeRoute(AddMemoryScreen(memoryService: _controller.service)),
     );
-    if (mounted) await _loadMemories();
+    if (mounted) await _controller.load();
   }
 
-  void _applyFilter(String query) {
-    _searchQuery = query;
-    if (query.trim().isEmpty) {
-      _filteredMemories = _memories;
-    } else {
-      _filteredMemories =
-          _memories.where((memory) => memory.matchesQuery(query)).toList();
+  Future<void> _openMemory(Memory memory) async {
+    final deleted = await Navigator.push<bool>(
+      context,
+      fadeRoute(
+        MemoryDetailScreen(
+          memory: memory,
+          memoryService: _controller.service,
+        ),
+      ),
+    );
+    if (!mounted) return;
+    await _controller.load();
+    if (deleted == true && mounted) {
+      _showUndoDeleteSnackBar();
     }
   }
 
-  void _filterMemories(String query) {
-    setState(() => _applyFilter(query));
+  Future<void> _deleteMemory(Memory memory) async {
+    await _controller.delete(memory);
+    if (mounted) _showUndoDeleteSnackBar();
+  }
+
+  void _showUndoDeleteSnackBar() {
+    final messenger = ScaffoldMessenger.of(context);
+    messenger.clearSnackBars();
+    messenger.showSnackBar(
+      SnackBar(
+        content: const Text('Memory deleted'),
+        action: SnackBarAction(
+          label: 'Undo',
+          onPressed: () async {
+            final restored = await _controller.undoDelete();
+            if (!mounted || !restored) return;
+            messenger.showSnackBar(
+              const SnackBar(content: Text('Memory restored')),
+            );
+          },
+        ),
+      ),
+    );
+  }
+
+  void _focusSearch() {
+    if (_controller.memories.isEmpty) return;
+    _searchFocus.requestFocus();
+  }
+
+  void _clearSearch() {
+    _searchController.clear();
+    _controller.setSearchQuery('');
+    _searchFocus.unfocus();
+  }
+
+  String get _themeTooltip {
+    return switch (_controller.themeMode) {
+      ThemeMode.system => 'Theme: system',
+      ThemeMode.light => 'Theme: light',
+      ThemeMode.dark => 'Theme: dark',
+    };
+  }
+
+  IconData get _themeIcon {
+    return switch (_controller.themeMode) {
+      ThemeMode.system => Icons.brightness_auto_outlined,
+      ThemeMode.light => Icons.light_mode_outlined,
+      ThemeMode.dark => Icons.dark_mode_outlined,
+    };
+  }
+
+  bool _onScroll(UserScrollNotification notification) {
+    if (notification.depth != 0) return false;
+    if (notification.metrics.axis != Axis.vertical) return false;
+    if (notification.metrics.pixels <= 0) {
+      if (!_fabVisible.value) _fabVisible.value = true;
+      return false;
+    }
+    if (notification.direction == ScrollDirection.reverse) {
+      if (_fabVisible.value) _fabVisible.value = false;
+    } else if (notification.direction == ScrollDirection.forward) {
+      if (!_fabVisible.value) _fabVisible.value = true;
+    }
+    return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      backgroundColor: const Color(0xFFF8FAFC),
-      appBar: AppBar(
-        title: const Text('Cherished Memories'),
-        actions: [
-          IconButton(
-            onPressed: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) =>
-                      StatsScreen(memoryService: widget.memoryService),
+    return ListenableBuilder(
+      listenable: _controller,
+      builder: (context, _) {
+        return CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+                _openAddMemory,
+            const SingleActivator(LogicalKeyboardKey.keyN, meta: true):
+                _openAddMemory,
+            const SingleActivator(LogicalKeyboardKey.slash): _focusSearch,
+            const SingleActivator(LogicalKeyboardKey.keyF, control: true):
+                _focusSearch,
+            const SingleActivator(LogicalKeyboardKey.keyF, meta: true):
+                _focusSearch,
+            const SingleActivator(LogicalKeyboardKey.escape): _clearSearch,
+          },
+          child: Focus(
+            focusNode: _shortcutsFocus,
+            autofocus: true,
+            child: Scaffold(
+              appBar: AppBar(
+                toolbarHeight:
+                    _controller.memories.isNotEmpty ? 72 : kToolbarHeight,
+                title: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text('Cherished Memories'),
+                    if (_controller.memories.isNotEmpty)
+                      Semantics(
+                        liveRegion: true,
+                        child: Text(
+                          _controller.searchQuery.trim().isEmpty
+                              ? '${_controller.memories.length} ${_controller.memories.length == 1 ? 'memory' : 'memories'} · ${_controller.favoriteCount} favorites'
+                              : '${_controller.visibleMemories.length} matches',
+                          style: Theme.of(context).textTheme.bodySmall,
+                        ),
+                      ),
+                  ],
                 ),
-              );
-            },
-            icon: const Icon(Icons.insights_outlined),
-            tooltip: 'View Statistics',
-          ),
-        ],
-      ),
-      body: Column(
-        children: [
-          if (_memories.isNotEmpty)
-            PremiumComponents.searchBar(
-              hintText: 'Search memories...',
-              controller: _searchController,
-              onChanged: _filterMemories,
+                actions: [
+                  IconButton(
+                    tooltip: _themeTooltip,
+                    onPressed: _controller.cycleThemeMode,
+                    icon: FadeSwitcher(
+                      duration: AppAnimations.fast,
+                      child: Icon(_themeIcon, key: ValueKey(_themeIcon)),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: _controller.layout == MemoryLayout.grid
+                        ? 'Switch to timeline'
+                        : 'Switch to grid',
+                    onPressed: () {
+                      lightHaptic();
+                      _controller.setLayout(
+                        _controller.layout == MemoryLayout.grid
+                            ? MemoryLayout.timeline
+                            : MemoryLayout.grid,
+                      );
+                    },
+                    icon: FadeSwitcher(
+                      duration: AppAnimations.fast,
+                      child: Icon(
+                        _controller.layout == MemoryLayout.grid
+                            ? Icons.view_agenda_outlined
+                            : Icons.grid_view_outlined,
+                        key: ValueKey(_controller.layout),
+                      ),
+                    ),
+                  ),
+                  PopupMenuButton<MemorySort>(
+                    tooltip: 'Sort memories',
+                    initialValue: _controller.sort,
+                    onSelected: _controller.setSort,
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(
+                        value: MemorySort.newest,
+                        child: Text('Newest first'),
+                      ),
+                      PopupMenuItem(
+                        value: MemorySort.oldest,
+                        child: Text('Oldest first'),
+                      ),
+                      PopupMenuItem(
+                        value: MemorySort.title,
+                        child: Text('Title'),
+                      ),
+                      PopupMenuItem(
+                        value: MemorySort.location,
+                        child: Text('Location'),
+                      ),
+                      PopupMenuItem(
+                        value: MemorySort.favoritesFirst,
+                        child: Text('Favorites first'),
+                      ),
+                    ],
+                    icon: const Icon(Icons.sort),
+                  ),
+                  IconButton(
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        fadeRoute(
+                          StatsScreen(memoryService: _controller.service),
+                        ),
+                      );
+                    },
+                    icon: const Icon(Icons.insights_outlined),
+                    tooltip: 'View Statistics',
+                  ),
+                ],
+              ),
+              body: NotificationListener<UserScrollNotification>(
+                onNotification: _onScroll,
+                child: Column(
+                  children: [
+                    if (_controller.memories.isNotEmpty)
+                      PremiumComponents.searchBar(
+                        hintText: 'Search memories...',
+                        controller: _searchController,
+                        focusNode: _searchFocus,
+                        onChanged: _controller.setSearchQuery,
+                      ),
+                    Expanded(
+                      child: FadeSwitcher(
+                        expand: true,
+                        child: KeyedSubtree(
+                          key: ValueKey(
+                            _controller.isLoading
+                                ? 'loading'
+                                : _controller.memories.isEmpty
+                                    ? 'empty'
+                                    : 'feed',
+                          ),
+                          child: _controller.isLoading
+                              ? const Center(child: CircularProgressIndicator())
+                              : _controller.memories.isEmpty
+                                  ? _EmptyMemoriesState(onAdd: _openAddMemory)
+                                  : MemoriesBody(
+                                      controller: _controller,
+                                      scrollController: _scrollController,
+                                      onOpen: _openMemory,
+                                      onFavorite: (memory) async {
+                                        lightHaptic();
+                                        await _controller
+                                            .toggleFavorite(memory);
+                                      },
+                                      onDelete: _deleteMemory,
+                                    ),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              floatingActionButton: ValueListenableBuilder<bool>(
+                valueListenable: _fabVisible,
+                builder: (context, show, child) {
+                  final duration =
+                      AppAnimations.of(context, AppAnimations.fast);
+                  return IgnorePointer(
+                    ignoring: !show,
+                    child: AnimatedScale(
+                      scale: show ? 1 : 0.86,
+                      duration: duration,
+                      curve: AppAnimations.inCurve,
+                      child: AnimatedOpacity(
+                        opacity: show ? 1 : 0,
+                        duration: duration,
+                        curve: AppAnimations.inCurve,
+                        child: child,
+                      ),
+                    ),
+                  );
+                },
+                child: FloatingActionButton(
+                  onPressed: _openAddMemory,
+                  tooltip: 'Add memory',
+                  child: const Icon(Icons.add),
+                ),
+              ),
             ),
-          Expanded(
-            child: _isLoading
-                ? const Center(child: CircularProgressIndicator())
-                : _memories.isEmpty
-                    ? _buildEmptyState()
-                    : _buildMemoriesGrid(),
           ),
-        ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _openAddMemory,
-        backgroundColor: AppTheme.primaryColor,
-        foregroundColor: Colors.white,
-        tooltip: 'Add memory',
-        child: const Icon(Icons.add),
-      ),
+        );
+      },
     );
   }
+}
 
-  Widget _buildEmptyState() {
+class _EmptyMemoriesState extends StatelessWidget {
+  const _EmptyMemoriesState({required this.onAdd});
+
+  final VoidCallback onAdd;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
@@ -183,23 +464,23 @@ class _HomeScreenState extends State<HomeScreen> {
               ),
             ),
             const SizedBox(height: 32),
-            const Text(
+            Text(
               'No memories yet',
-              style: AppTheme.headingStyle,
+              style: Theme.of(context).textTheme.headlineSmall,
             ),
             const SizedBox(height: 12),
-            const Text(
+            Text(
               'Start capturing your special moments',
-              style: AppTheme.captionStyle,
+              style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 32),
             FilledButton.icon(
-              onPressed: _openAddMemory,
+              onPressed: onAdd,
               icon: const Icon(Icons.add),
               label: const Text('Add First Memory'),
               style: FilledButton.styleFrom(
-                backgroundColor: AppTheme.primaryColor,
+                backgroundColor: colorScheme.primary,
                 padding:
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
@@ -208,146 +489,5 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
       ),
     );
-  }
-
-  Widget _buildMemoriesGrid() {
-    final displayMemories = _filteredMemories;
-
-    if (displayMemories.isEmpty && _searchQuery.isNotEmpty) {
-      return const Center(
-        child: Padding(
-          padding: EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(Icons.search_off, size: 48, color: AppTheme.primaryColor),
-              SizedBox(height: 16),
-              Text('No memories found', style: AppTheme.subheadingStyle),
-              SizedBox(height: 8),
-              Text(
-                'Try searching with different keywords',
-                style: AppTheme.captionStyle,
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-      );
-    }
-
-    return RefreshIndicator(
-      onRefresh: _loadMemories,
-      child: GridView.builder(
-        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          crossAxisSpacing: 12,
-          mainAxisSpacing: 12,
-          childAspectRatio: 0.72,
-        ),
-        itemCount: displayMemories.length,
-        itemBuilder: (context, index) {
-          final memory = displayMemories[index];
-          return PremiumMemoryCard(
-            key: ValueKey(memory.id),
-            memory: memory,
-            onTap: () async {
-              await Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (context) => MemoryDetailScreen(
-                    memory: memory,
-                    memoryService: widget.memoryService,
-                  ),
-                ),
-              );
-              if (mounted) await _loadMemories();
-            },
-          );
-        },
-      ),
-    );
-  }
-}
-
-class PremiumMemoryCard extends StatelessWidget {
-  final Memory memory;
-  final VoidCallback onTap;
-
-  const PremiumMemoryCard({
-    super.key,
-    required this.memory,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final card = Material(
-      color: Colors.white,
-      elevation: 2,
-      shadowColor: Colors.black26,
-      borderRadius: BorderRadius.circular(20),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: MemoryPhoto(
-                imageUrl: memory.imageUrl,
-                width: double.infinity,
-                fit: BoxFit.cover,
-                placeholder: const ColoredBox(
-                  color: Color(0xFFF3F4F6),
-                  child: Center(
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-                errorWidget: ColoredBox(
-                  color: const Color(0xFFF3F4F6),
-                  child: Center(
-                    child: Icon(
-                      Icons.favorite_outline,
-                      color: AppTheme.primaryColor.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(12, 10, 12, 12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    memory.title,
-                    style: AppTheme.subheadingStyle.copyWith(fontSize: 16),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    DateFormat('MMM d, yyyy').format(memory.date),
-                    style: AppTheme.captionStyle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  Text(
-                    memory.location,
-                    style: AppTheme.captionStyle,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-
-    if (kIsWeb) return card;
-    return Hero(tag: 'memory-${memory.id}', child: card);
   }
 }

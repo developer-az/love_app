@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:intl/intl.dart';
 import 'package:my_special_app/models/memory.dart';
 import 'package:my_special_app/screens/add_memory_screen.dart';
 import 'package:my_special_app/services/memory_service.dart';
+import 'package:my_special_app/state/memory_controller.dart';
 import 'package:my_special_app/theme/app_theme.dart';
+import 'package:my_special_app/utils/app_animations.dart';
+import 'package:my_special_app/utils/haptics.dart';
+import 'package:my_special_app/utils/memory_dates.dart';
 import 'package:my_special_app/widgets/memory_photo.dart';
+import 'package:my_special_app/widgets/motion.dart';
 import 'package:photo_view/photo_view.dart';
 
 class MemoryDetailScreen extends StatefulWidget {
@@ -34,8 +38,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   Future<void> _editMemory() async {
     final updated = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (context) => AddMemoryScreen(
+      fadeRoute(
+        AddMemoryScreen(
           memoryService: widget.memoryService,
           existingMemory: _memory,
         ),
@@ -52,13 +56,34 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     setState(() => _memory = refreshed);
   }
 
+  Future<void> _toggleFavorite() async {
+    lightHaptic();
+    final controller = MemoryScope.maybeOf(context);
+    if (controller != null) {
+      await controller.toggleFavorite(_memory);
+      if (!mounted) return;
+      final match =
+          controller.memories.where((memory) => memory.id == _memory.id);
+      setState(() {
+        _memory = match.isEmpty
+            ? _memory.copyWith(isFavorite: !_memory.isFavorite)
+            : match.first;
+      });
+      return;
+    }
+    final updated = _memory.copyWith(isFavorite: !_memory.isFavorite);
+    await widget.memoryService.updateMemory(updated);
+    if (!mounted) return;
+    setState(() => _memory = updated);
+  }
+
   Future<void> _deleteMemory() async {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Delete this memory?'),
         content: const Text(
-          'This will permanently remove the memory from your collection.',
+          'This will remove the memory from your collection. You can undo from the home screen.',
         ),
         actions: [
           TextButton(
@@ -67,7 +92,9 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
-            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            style: TextButton.styleFrom(
+              foregroundColor: Theme.of(context).colorScheme.error,
+            ),
             child: const Text('Delete'),
           ),
         ],
@@ -75,24 +102,20 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     );
     if (confirmed != true || !mounted) return;
 
-    await widget.memoryService.deleteMemory(_memory.id);
+    final controller = MemoryScope.maybeOf(context);
+    if (controller != null) {
+      await controller.delete(_memory);
+    } else {
+      await widget.memoryService.deleteMemory(_memory.id);
+    }
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Memory deleted',
-          style: AppTheme.bodyStyle.copyWith(color: Colors.white),
-        ),
-        backgroundColor: AppTheme.primaryColor,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
-    );
+    mediumHaptic();
     Navigator.pop(context, true);
   }
 
   @override
   Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Scaffold(
       body: CustomScrollView(
         slivers: [
@@ -100,175 +123,144 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
             expandedHeight: 400,
             pinned: true,
             stretch: true,
-            backgroundColor: AppTheme.primaryColor,
+            backgroundColor: colorScheme.primary,
             flexibleSpace: FlexibleSpaceBar(
               background: GestureDetector(
                 onTap: () => _showImageViewer(context),
                 child: MemoryPhoto(
                   imageUrl: _memory.imageUrl,
                   fit: BoxFit.cover,
-                  errorWidget: Container(
-                    color: Colors.grey[200],
-                    child:
-                        const Icon(Icons.error, size: 50, color: Colors.grey),
+                  errorWidget: ColoredBox(
+                    color: colorScheme.surfaceContainerHighest,
+                    child: Icon(
+                      Icons.photo_outlined,
+                      size: 50,
+                      color: colorScheme.onSurfaceVariant,
+                    ),
                   ),
                 ),
               ),
             ),
-            leading: Container(
-              margin: const EdgeInsets.all(8),
-              decoration: BoxDecoration(
-                color: Colors.black.withValues(alpha: 0.3),
-                borderRadius: BorderRadius.circular(12),
-              ),
-              child: IconButton(
-                icon: const Icon(Icons.arrow_back, color: Colors.white),
-                onPressed: () => Navigator.pop(context),
-              ),
+            leading: _barButton(
+              icon: Icons.arrow_back,
+              tooltip: 'Back',
+              onPressed: () => Navigator.pop(context),
             ),
             actions: [
-              Container(
-                margin: const EdgeInsets.all(8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.edit_outlined, color: Colors.white),
-                  tooltip: 'Edit memory',
-                  onPressed: _editMemory,
-                ),
+              _barButton(
+                icon:
+                    _memory.isFavorite ? Icons.favorite : Icons.favorite_border,
+                tooltip: _memory.isFavorite
+                    ? 'Remove from favorites'
+                    : 'Add to favorites',
+                onPressed: _toggleFavorite,
               ),
-              Container(
-                margin: const EdgeInsets.only(right: 8, top: 8, bottom: 8),
-                decoration: BoxDecoration(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: IconButton(
-                  icon: const Icon(Icons.delete_outline, color: Colors.white),
-                  tooltip: 'Delete memory',
-                  onPressed: _deleteMemory,
-                ),
+              _barButton(
+                icon: Icons.edit_outlined,
+                tooltip: 'Edit memory',
+                onPressed: _editMemory,
+              ),
+              _barButton(
+                icon: Icons.delete_outline,
+                tooltip: 'Delete memory',
+                onPressed: _deleteMemory,
               ),
             ],
           ),
           SliverToBoxAdapter(
-            child: Container(
-              decoration: const BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-              ),
+            child: Material(
+              color: Theme.of(context).scaffoldBackgroundColor,
+              borderRadius:
+                  const BorderRadius.vertical(top: Radius.circular(24)),
               child: Padding(
                 padding: const EdgeInsets.all(24),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _memory.title,
-                      style: AppTheme.headingStyle.copyWith(fontSize: 28),
-                    ),
-                    const SizedBox(height: 24),
-                    Container(
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        gradient: LinearGradient(
-                          colors: [
-                            AppTheme.primaryColor.withValues(alpha: 0.1),
-                            AppTheme.secondaryColor.withValues(alpha: 0.1),
+                child: SelectionArea(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        _memory.title,
+                        style: Theme.of(context).textTheme.displaySmall,
+                      ),
+                      const SizedBox(height: 24),
+                      Container(
+                        padding: const EdgeInsets.all(20),
+                        decoration: BoxDecoration(
+                          gradient: LinearGradient(
+                            colors: [
+                              colorScheme.primary.withValues(alpha: 0.1),
+                              colorScheme.secondary.withValues(alpha: 0.1),
+                            ],
+                          ),
+                          borderRadius: BorderRadius.circular(16),
+                          border: Border.all(
+                            color: colorScheme.primary.withValues(alpha: 0.2),
+                          ),
+                        ),
+                        child: Column(
+                          children: [
+                            _buildInfoRow(
+                              Icons.calendar_today,
+                              'Date',
+                              MemoryDates.full(_memory.date),
+                            ),
+                            const SizedBox(height: 16),
+                            _buildInfoRow(
+                              Icons.location_on,
+                              'Location',
+                              _memory.location,
+                            ),
                           ],
                         ),
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: AppTheme.primaryColor.withValues(alpha: 0.2),
+                      ),
+                      const SizedBox(height: 32),
+                      Text(
+                        'Story',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 16),
+                      Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(20),
+                        decoration: AppTheme.cardDecorationOf(context),
+                        child: Text(
+                          _memory.description,
+                          style: Theme.of(context).textTheme.bodyLarge,
                         ),
                       ),
-                      child: Column(
+                      const SizedBox(height: 32),
+                      Row(
                         children: [
-                          _buildInfoRow(
-                            Icons.calendar_today,
-                            'Date',
-                            DateFormat('MMMM d, yyyy').format(_memory.date),
-                          ),
-                          const SizedBox(height: 16),
-                          _buildInfoRow(
-                            Icons.location_on,
-                            'Location',
-                            _memory.location,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Text(
-                      'Story',
-                      style: AppTheme.titleStyle.copyWith(fontSize: 22),
-                    ),
-                    const SizedBox(height: 16),
-                    Container(
-                      width: double.infinity,
-                      padding: const EdgeInsets.all(20),
-                      decoration: BoxDecoration(
-                        color: Colors.grey[50],
-                        borderRadius: BorderRadius.circular(16),
-                        border: Border.all(
-                          color: Colors.grey[200]!,
-                        ),
-                      ),
-                      child: Text(
-                        _memory.description,
-                        style: AppTheme.bodyStyle.copyWith(
-                          height: 1.6,
-                          fontSize: 17,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 32),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: Container(
-                            decoration: AppTheme.gradientButtonDecoration,
-                            child: ElevatedButton.icon(
+                          Expanded(
+                            child: FilledButton.icon(
                               onPressed: () => _shareMemory(context),
-                              icon:
-                                  const Icon(Icons.share, color: Colors.white),
-                              label: Text(
-                                'Share Memory',
-                                style: AppTheme.bodyStyle.copyWith(
-                                  color: Colors.white,
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              style: ElevatedButton.styleFrom(
-                                backgroundColor: Colors.transparent,
-                                shadowColor: Colors.transparent,
+                              icon: const Icon(Icons.share),
+                              label: const Text('Share Memory'),
+                              style: FilledButton.styleFrom(
                                 padding:
                                     const EdgeInsets.symmetric(vertical: 16),
                               ),
                             ),
                           ),
-                        ),
-                        const SizedBox(width: 16),
-                        Container(
-                          decoration: BoxDecoration(
-                            border: Border.all(color: AppTheme.primaryColor),
-                            borderRadius: BorderRadius.circular(16),
-                          ),
-                          child: IconButton(
+                          const SizedBox(width: 16),
+                          OutlinedButton(
                             onPressed: () => _showImageViewer(context),
-                            icon: Icon(
-                              Icons.zoom_in,
-                              color: AppTheme.primaryColor,
-                              size: 24,
+                            style: OutlinedButton.styleFrom(
+                              padding: const EdgeInsets.all(16),
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(16),
+                              ),
                             ),
-                            padding: const EdgeInsets.all(16),
+                            child: Icon(
+                              Icons.zoom_in,
+                              color: colorScheme.primary,
+                            ),
                           ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 32),
-                  ],
+                        ],
+                      ),
+                      const SizedBox(height: 32),
+                    ],
+                  ),
                 ),
               ),
             ),
@@ -278,39 +270,48 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     );
   }
 
+  Widget _barButton({
+    required IconData icon,
+    required String tooltip,
+    required VoidCallback onPressed,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.all(8),
+      child: Material(
+        color: Colors.black.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        child: IconButton(
+          icon: FadeSwitcher(
+            duration: AppAnimations.fast,
+            child: Icon(icon, key: ValueKey(icon), color: Colors.white),
+          ),
+          tooltip: tooltip,
+          onPressed: onPressed,
+        ),
+      ),
+    );
+  }
+
   Widget _buildInfoRow(IconData icon, String label, String value) {
+    final colorScheme = Theme.of(context).colorScheme;
     return Row(
       children: [
         Container(
           padding: const EdgeInsets.all(8),
           decoration: BoxDecoration(
-            color: AppTheme.primaryColor.withValues(alpha: 0.1),
+            color: colorScheme.primary.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(8),
           ),
-          child: Icon(
-            icon,
-            color: AppTheme.primaryColor,
-            size: 20,
-          ),
+          child: Icon(icon, color: colorScheme.primary, size: 20),
         ),
         const SizedBox(width: 16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                label,
-                style: AppTheme.captionStyle.copyWith(
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
+              Text(label, style: Theme.of(context).textTheme.bodyMedium),
               const SizedBox(height: 2),
-              Text(
-                value,
-                style: AppTheme.bodyStyle.copyWith(
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+              Text(value, style: Theme.of(context).textTheme.titleMedium),
             ],
           ),
         ),
@@ -324,8 +325,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
 
     Navigator.push(
       context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => Scaffold(
+      fadeRoute(
+        Scaffold(
           backgroundColor: Colors.black,
           appBar: AppBar(
             backgroundColor: Colors.transparent,
@@ -337,9 +338,6 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
             maxScale: PhotoViewComputedScale.covered * 2,
           ),
         ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
       ),
     );
   }
@@ -347,7 +345,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   Future<void> _shareMemory(BuildContext context) async {
     final text = StringBuffer()
       ..writeln(_memory.title)
-      ..writeln(DateFormat('MMMM d, yyyy').format(_memory.date))
+      ..writeln(MemoryDates.full(_memory.date))
       ..writeln(_memory.location)
       ..writeln()
       ..write(_memory.description);
@@ -355,15 +353,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
     await Clipboard.setData(ClipboardData(text: text.toString()));
     if (!context.mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(
-          'Memory copied to clipboard',
-          style: AppTheme.bodyStyle.copyWith(color: Colors.white),
-        ),
-        backgroundColor: AppTheme.primaryColor,
-        behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-      ),
+      const SnackBar(content: Text('Memory copied to clipboard')),
     );
   }
 }
