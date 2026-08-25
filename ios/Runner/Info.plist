@@ -5,7 +5,7 @@
 	<key>CFBundleDevelopmentRegion</key>
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
-	<string>My Special App</string>
+	<string>Cherished Memories</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
@@ -45,5 +45,11 @@
 	<true/>
 	<key>UIApplicationSupportsIndirectInputEvents</key>
 	<true/>
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Allow Cherished Memories to choose photos from your library for new memories.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Allow Cherished Memories to take photos for new memories.</string>
+	<key>NSPhotoLibraryAddUsageDescription</key>
+	<string>Allow Cherished Memories to save photos you capture for your memories.</string>
 </dict>
 </plist>

@@ -16,7 +16,8 @@ void main() {
       memoryService = MemoryService(prefs);
     });
 
-    testWidgets('Stats screen loads without errors when memories are empty', (WidgetTester tester) async {
+    testWidgets('Stats screen loads without errors when memories are empty',
+        (WidgetTester tester) async {
       await tester.pumpWidget(
         MaterialApp(
           home: StatsScreen(memoryService: memoryService),
@@ -31,7 +32,8 @@ void main() {
       expect(find.text('Memory Statistics'), findsOneWidget);
     });
 
-    testWidgets('Stats screen displays correct data with sample memories', (WidgetTester tester) async {
+    testWidgets('Stats screen displays correct data with sample memories',
+        (WidgetTester tester) async {
       // Add sample memories
       final memory1 = Memory(
         id: '1',
@@ -89,7 +91,7 @@ void main() {
     test('Cache invalidation works correctly', () async {
       // This test verifies that our caching mechanism works
       // by ensuring that calculations are consistent before and after cache operations
-      
+
       final memory1 = Memory(
         id: '1',
         title: 'Test Memory 1',
@@ -112,11 +114,12 @@ void main() {
       await memoryService.addMemory(memory2);
 
       final memories = await memoryService.getMemories();
-      
+
       // Verify we have the expected data
       expect(memories.length, 2);
-      expect(memories.map((m) => m.location).toSet().length, 1); // 1 unique location
-      
+      expect(memories.map((m) => m.location).toSet().length,
+          1); // 1 unique location
+
       // Verify oldest memory is correctly identified
       final oldest = memories.reduce((a, b) => a.date.isBefore(b.date) ? a : b);
       expect(oldest.id, '1'); // memory1 should be oldest (2023 vs 2024)

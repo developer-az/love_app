@@ -1,14 +1,23 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
-import 'package:my_special_app/theme/app_theme.dart';
+import 'package:flutter_animate/flutter_animate.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:intl/intl.dart';
 import 'package:my_special_app/models/memory.dart';
 import 'package:my_special_app/services/memory_service.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import 'package:intl/intl.dart';
+import 'package:my_special_app/theme/app_theme.dart';
+import 'package:uuid/uuid.dart';
 
 class AddMemoryScreen extends StatefulWidget {
   final MemoryService memoryService;
+  final Memory? existingMemory;
 
-  const AddMemoryScreen({super.key, required this.memoryService});
+  const AddMemoryScreen({
+    super.key,
+    required this.memoryService,
+    this.existingMemory,
+  });
 
   @override
   State<AddMemoryScreen> createState() => _AddMemoryScreenState();
@@ -22,6 +31,22 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
   final _imageUrlController = TextEditingController();
   DateTime _selectedDate = DateTime.now();
   bool _isLoading = false;
+  bool _isPickingImage = false;
+
+  bool get _isEditing => widget.existingMemory != null;
+
+  @override
+  void initState() {
+    super.initState();
+    final existing = widget.existingMemory;
+    if (existing != null) {
+      _titleController.text = existing.title;
+      _descriptionController.text = existing.description;
+      _locationController.text = existing.location;
+      _imageUrlController.text = existing.imageUrl;
+      _selectedDate = existing.date;
+    }
+  }
 
   @override
   void dispose() {
@@ -59,64 +84,109 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
     }
   }
 
+  Future<void> _pickImage(ImageSource source) async {
+    if (_isPickingImage) return;
+    setState(() => _isPickingImage = true);
+    try {
+      final picker = ImagePicker();
+      final file = await picker.pickImage(
+        source: source,
+        maxWidth: 1600,
+        maxHeight: 1600,
+        imageQuality: 80,
+      );
+      if (file == null) return;
+
+      final bytes = await file.readAsBytes();
+      if (bytes.isEmpty) return;
+      final mime = file.mimeType ?? 'image/jpeg';
+      setState(() {
+        _imageUrlController.text = 'data:$mime;base64,${base64Encode(bytes)}';
+      });
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Could not pick image: $e',
+            style: AppTheme.bodyStyle.copyWith(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isPickingImage = false);
+      }
+    }
+  }
+
   Future<void> _saveMemory() async {
-    if (_formKey.currentState!.validate()) {
-      setState(() => _isLoading = true);
+    if (!_formKey.currentState!.validate()) return;
 
-      try {
-        final memory = Memory(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          title: _titleController.text.trim(),
-          description: _descriptionController.text.trim(),
-          imageUrl: _imageUrlController.text.trim().isEmpty
-              ? 'https://picsum.photos/600/800?random=${DateTime.now().millisecondsSinceEpoch}'
-              : _imageUrlController.text.trim(),
-          date: _selectedDate,
-          location: _locationController.text.trim(),
-        );
+    setState(() => _isLoading = true);
 
+    try {
+      final existing = widget.existingMemory;
+      final memory = Memory(
+        id: existing?.id ?? const Uuid().v4(),
+        title: _titleController.text.trim(),
+        description: _descriptionController.text.trim(),
+        imageUrl: _imageUrlController.text.trim().isEmpty
+            ? 'https://picsum.photos/600/800?random=${DateTime.now().millisecondsSinceEpoch}'
+            : _imageUrlController.text.trim(),
+        date: _selectedDate,
+        location: _locationController.text.trim(),
+      );
+
+      if (existing == null) {
         await widget.memoryService.addMemory(memory);
-        
-        if (mounted) {
-          // Show success message
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Row(
-                children: [
-                  const Icon(Icons.check_circle, color: Colors.white),
-                  const SizedBox(width: 8),
-                  Text(
-                    'Memory saved successfully!',
-                    style: AppTheme.bodyStyle.copyWith(color: Colors.white),
-                  ),
-                ],
-              ),
-              backgroundColor: Colors.green,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          );
-          
-          Navigator.pop(context);
-        }
-      } catch (e) {
-        if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(
-                'Error saving memory: $e',
+      } else {
+        await widget.memoryService.updateMemory(memory);
+      }
+
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Row(
+            children: [
+              const Icon(Icons.check_circle, color: Colors.white),
+              const SizedBox(width: 8),
+              Text(
+                existing == null
+                    ? 'Memory saved successfully!'
+                    : 'Memory updated successfully!',
                 style: AppTheme.bodyStyle.copyWith(color: Colors.white),
               ),
-              backgroundColor: Colors.red,
-              behavior: SnackBarBehavior.floating,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-            ),
-          );
-        }
-      } finally {
-        if (mounted) {
-          setState(() => _isLoading = false);
-        }
+            ],
+          ),
+          backgroundColor: Colors.green,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+      Navigator.pop(context, true);
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'Error saving memory: $e',
+            style: AppTheme.bodyStyle.copyWith(color: Colors.white),
+          ),
+          backgroundColor: Colors.red,
+          behavior: SnackBarBehavior.floating,
+          shape:
+              RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
       }
     }
   }
@@ -138,9 +208,9 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
         child: SafeArea(
           child: Column(
             children: [
-              // Custom App Bar
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                 child: Row(
                   children: [
                     Container(
@@ -149,7 +219,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                         borderRadius: BorderRadius.circular(12),
                         boxShadow: [
                           BoxShadow(
-                            color: Colors.black.withOpacity(0.1),
+                            color: Colors.black.withValues(alpha: 0.1),
                             blurRadius: 8,
                             offset: const Offset(0, 2),
                           ),
@@ -164,17 +234,15 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                     Expanded(
                       child: Center(
                         child: Text(
-                          'Add New Memory',
+                          _isEditing ? 'Edit Memory' : 'Add New Memory',
                           style: AppTheme.titleStyle,
                         ),
                       ),
                     ),
-                    const SizedBox(width: 48), // Balance the back button
+                    const SizedBox(width: 48),
                   ],
                 ),
               ).animate().fadeIn().slideY(begin: -0.3, end: 0),
-              
-              // Form Content
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.all(24),
@@ -183,7 +251,6 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.stretch,
                       children: [
-                        // Title Field
                         _buildSectionHeader('Title', Icons.title),
                         const SizedBox(height: 8),
                         _buildTextField(
@@ -195,17 +262,17 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                             }
                             return null;
                           },
-                        ).animate(delay: const Duration(milliseconds: 100))
-                            .fadeIn().slideX(begin: 0.3, end: 0),
-                        
+                        )
+                            .animate(delay: const Duration(milliseconds: 100))
+                            .fadeIn()
+                            .slideX(begin: 0.3, end: 0),
                         const SizedBox(height: 24),
-                        
-                        // Description Field
                         _buildSectionHeader('Story', Icons.auto_stories),
                         const SizedBox(height: 8),
                         _buildTextField(
                           controller: _descriptionController,
-                          hintText: 'Tell the story behind this special moment...',
+                          hintText:
+                              'Tell the story behind this special moment...',
                           maxLines: 4,
                           validator: (value) {
                             if (value == null || value.trim().isEmpty) {
@@ -213,12 +280,11 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                             }
                             return null;
                           },
-                        ).animate(delay: const Duration(milliseconds: 200))
-                            .fadeIn().slideX(begin: 0.3, end: 0),
-                        
+                        )
+                            .animate(delay: const Duration(milliseconds: 200))
+                            .fadeIn()
+                            .slideX(begin: 0.3, end: 0),
                         const SizedBox(height: 24),
-                        
-                        // Location Field
                         _buildSectionHeader('Location', Icons.location_on),
                         const SizedBox(height: 8),
                         _buildTextField(
@@ -230,12 +296,11 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                             }
                             return null;
                           },
-                        ).animate(delay: const Duration(milliseconds: 300))
-                            .fadeIn().slideX(begin: 0.3, end: 0),
-                        
+                        )
+                            .animate(delay: const Duration(milliseconds: 300))
+                            .fadeIn()
+                            .slideX(begin: 0.3, end: 0),
                         const SizedBox(height: 24),
-                        
-                        // Date Selector
                         _buildSectionHeader('Date', Icons.calendar_today),
                         const SizedBox(height: 8),
                         GestureDetector(
@@ -248,7 +313,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                               border: Border.all(color: Colors.grey[300]!),
                               boxShadow: [
                                 BoxShadow(
-                                  color: Colors.black.withOpacity(0.05),
+                                  color: Colors.black.withValues(alpha: 0.05),
                                   blurRadius: 10,
                                   offset: const Offset(0, 4),
                                 ),
@@ -259,7 +324,8 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                                 Container(
                                   padding: const EdgeInsets.all(8),
                                   decoration: BoxDecoration(
-                                    color: AppTheme.primaryColor.withOpacity(0.1),
+                                    color:
+                                        AppTheme.primaryColor.withValues(alpha: 0.1),
                                     borderRadius: BorderRadius.circular(8),
                                   ),
                                   child: Icon(
@@ -271,7 +337,8 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                                 const SizedBox(width: 16),
                                 Expanded(
                                   child: Column(
-                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
                                     children: [
                                       Text(
                                         'Selected Date',
@@ -279,7 +346,8 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                                       ),
                                       const SizedBox(height: 2),
                                       Text(
-                                        DateFormat('MMMM d, yyyy').format(_selectedDate),
+                                        DateFormat('MMMM d, yyyy')
+                                            .format(_selectedDate),
                                         style: AppTheme.bodyStyle.copyWith(
                                           fontWeight: FontWeight.w600,
                                         ),
@@ -294,23 +362,63 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                               ],
                             ),
                           ),
-                        ).animate(delay: const Duration(milliseconds: 400))
-                            .fadeIn().slideX(begin: 0.3, end: 0),
-                        
+                        )
+                            .animate(delay: const Duration(milliseconds: 400))
+                            .fadeIn()
+                            .slideX(begin: 0.3, end: 0),
                         const SizedBox(height: 24),
-                        
-                        // Image URL Field
-                        _buildSectionHeader('Photo (Optional)', Icons.photo),
+                        _buildSectionHeader('Photo', Icons.photo),
                         const SizedBox(height: 8),
+                        Row(
+                          children: [
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _isPickingImage
+                                    ? null
+                                    : () => _pickImage(ImageSource.gallery),
+                                icon: const Icon(Icons.photo_library_outlined),
+                                label: const Text('Gallery'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.primaryColor,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 12),
+                            Expanded(
+                              child: OutlinedButton.icon(
+                                onPressed: _isPickingImage
+                                    ? null
+                                    : () => _pickImage(ImageSource.camera),
+                                icon: const Icon(Icons.photo_camera_outlined),
+                                label: const Text('Camera'),
+                                style: OutlinedButton.styleFrom(
+                                  foregroundColor: AppTheme.primaryColor,
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 14),
+                                  shape: RoundedRectangleBorder(
+                                    borderRadius: BorderRadius.circular(12),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        )
+                            .animate(delay: const Duration(milliseconds: 450))
+                            .fadeIn(),
+                        const SizedBox(height: 12),
                         _buildTextField(
                           controller: _imageUrlController,
-                          hintText: 'Enter image URL or leave blank for random photo',
-                        ).animate(delay: const Duration(milliseconds: 500))
-                            .fadeIn().slideX(begin: 0.3, end: 0),
-                        
+                          hintText: 'Or paste an image URL (optional)',
+                        )
+                            .animate(delay: const Duration(milliseconds: 500))
+                            .fadeIn()
+                            .slideX(begin: 0.3, end: 0),
                         const SizedBox(height: 40),
-                        
-                        // Save Button
                         Container(
                           decoration: AppTheme.gradientButtonDecoration,
                           child: ElevatedButton(
@@ -329,11 +437,14 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                                     width: 20,
                                     child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      valueColor: AlwaysStoppedAnimation<Color>(Colors.white),
+                                      valueColor: AlwaysStoppedAnimation<Color>(
+                                          Colors.white),
                                     ),
                                   )
                                 : Text(
-                                    'Save Memory',
+                                    _isEditing
+                                        ? 'Update Memory'
+                                        : 'Save Memory',
                                     style: AppTheme.bodyStyle.copyWith(
                                       color: Colors.white,
                                       fontWeight: FontWeight.w700,
@@ -341,8 +452,10 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
                                     ),
                                   ),
                           ),
-                        ).animate(delay: const Duration(milliseconds: 600))
-                            .fadeIn().slideY(begin: 0.3, end: 0),
+                        )
+                            .animate(delay: const Duration(milliseconds: 600))
+                            .fadeIn()
+                            .slideY(begin: 0.3, end: 0),
                       ],
                     ),
                   ),
@@ -382,7 +495,7 @@ class _AddMemoryScreenState extends State<AddMemoryScreen> {
       decoration: BoxDecoration(
         boxShadow: [
           BoxShadow(
-            color: Colors.black.withOpacity(0.05),
+            color: Colors.black.withValues(alpha: 0.05),
             blurRadius: 10,
             offset: const Offset(0, 4),
           ),

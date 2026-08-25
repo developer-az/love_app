@@ -6,9 +6,9 @@ import 'package:my_special_app/services/memory_service.dart';
 import 'package:my_special_app/screens/add_memory_screen.dart';
 import 'package:my_special_app/screens/memory_detail_screen.dart';
 import 'package:my_special_app/screens/stats_screen.dart';
+import 'package:my_special_app/widgets/memory_photo.dart';
 import 'package:my_special_app/widgets/premium_components.dart';
 import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 
 void main() async {
@@ -44,6 +44,7 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+  final TextEditingController _searchController = TextEditingController();
   List<Memory> _memories = [];
   List<Memory> _filteredMemories = [];
   bool _isLoading = true;
@@ -55,29 +56,37 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
     _loadMemories();
   }
 
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
+  }
+
   Future<void> _loadMemories() async {
-    setState(() => _isLoading = true);
+    if (mounted) {
+      setState(() => _isLoading = true);
+    }
     final memories = await widget.memoryService.getMemories();
+    if (!mounted) return;
     setState(() {
       _memories = memories;
-      _filteredMemories = memories;
       _isLoading = false;
+      _applyFilter(_searchQuery);
     });
   }
 
+  void _applyFilter(String query) {
+    _searchQuery = query;
+    if (query.trim().isEmpty) {
+      _filteredMemories = _memories;
+    } else {
+      _filteredMemories =
+          _memories.where((memory) => memory.matchesQuery(query)).toList();
+    }
+  }
+
   void _filterMemories(String query) {
-    setState(() {
-      _searchQuery = query;
-      if (query.isEmpty) {
-        _filteredMemories = _memories;
-      } else {
-        _filteredMemories = _memories.where((memory) {
-          return memory.title.toLowerCase().contains(query.toLowerCase()) ||
-                 memory.description.toLowerCase().contains(query.toLowerCase()) ||
-                 memory.location.toLowerCase().contains(query.toLowerCase());
-        }).toList();
-      }
-    });
+    setState(() => _applyFilter(query));
   }
 
   @override
@@ -95,11 +104,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           Container(
             margin: const EdgeInsets.only(right: 16),
             decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.9),
+              color: Colors.white.withValues(alpha: 0.9),
               borderRadius: BorderRadius.circular(12),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withOpacity(0.1),
+                  color: Colors.black.withValues(alpha: 0.1),
                   blurRadius: 8,
                   offset: const Offset(0, 2),
                 ),
@@ -112,10 +121,12 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   PageRouteBuilder(
                     pageBuilder: (context, animation, secondaryAnimation) =>
                         StatsScreen(memoryService: widget.memoryService),
-                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) {
                       return SlideTransition(
                         position: animation.drive(
-                          Tween(begin: const Offset(1.0, 0.0), end: Offset.zero),
+                          Tween(
+                              begin: const Offset(1.0, 0.0), end: Offset.zero),
                         ),
                         child: child,
                       );
@@ -150,9 +161,10 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               if (_memories.isNotEmpty)
                 PremiumComponents.searchBar(
                   hintText: 'Search memories...',
+                  controller: _searchController,
                   onChanged: _filterMemories,
                 ).animate().fadeIn(delay: const Duration(milliseconds: 200)),
-              
+
               // Content
               Expanded(
                 child: _isLoading
@@ -174,7 +186,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               PageRouteBuilder(
                 pageBuilder: (context, animation, secondaryAnimation) =>
                     AddMemoryScreen(memoryService: widget.memoryService),
-                transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                transitionsBuilder:
+                    (context, animation, secondaryAnimation, child) {
                   return SlideTransition(
                     position: animation.drive(
                       Tween(begin: const Offset(0.0, 1.0), end: Offset.zero),
@@ -184,7 +197,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 },
               ),
             );
-            _loadMemories();
+            if (mounted) _loadMemories();
           },
           backgroundColor: Colors.transparent,
           elevation: 0,
@@ -305,10 +318,11 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                 await Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (context) => AddMemoryScreen(memoryService: widget.memoryService),
+                    builder: (context) =>
+                        AddMemoryScreen(memoryService: widget.memoryService),
                   ),
                 );
-                _loadMemories();
+                if (mounted) _loadMemories();
               },
               icon: const Icon(Icons.add, color: Colors.white),
               label: Text(
@@ -321,7 +335,8 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               style: ElevatedButton.styleFrom(
                 backgroundColor: Colors.transparent,
                 shadowColor: Colors.transparent,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
             ),
           ).animate().fadeIn(delay: const Duration(milliseconds: 700)),
@@ -332,7 +347,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
 
   Widget _buildMemoriesGrid() {
     final displayMemories = _filteredMemories;
-    
+
     if (displayMemories.isEmpty && _searchQuery.isNotEmpty) {
       return Center(
         child: Column(
@@ -342,7 +357,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: AppTheme.primaryColor.withOpacity(0.1),
+                color: AppTheme.primaryColor.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
               child: Icon(
@@ -366,7 +381,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
         ),
       ).animate().fadeIn();
     }
-    
+
     return RefreshIndicator(
       onRefresh: _loadMemories,
       child: Padding(
@@ -381,17 +396,22 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             return PremiumMemoryCard(
               memory: memory,
               index: index,
-              onTap: () {
-                Navigator.push(
+              onTap: () async {
+                await Navigator.push(
                   context,
                   PageRouteBuilder(
                     pageBuilder: (context, animation, secondaryAnimation) =>
-                        MemoryDetailScreen(memory: memory),
-                    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+                        MemoryDetailScreen(
+                      memory: memory,
+                      memoryService: widget.memoryService,
+                    ),
+                    transitionsBuilder:
+                        (context, animation, secondaryAnimation, child) {
                       return FadeTransition(opacity: animation, child: child);
                     },
                   ),
                 );
+                if (mounted) _loadMemories();
               },
             );
           },
@@ -428,19 +448,19 @@ class PremiumMemoryCard extends StatelessWidget {
                 borderRadius: const BorderRadius.vertical(
                   top: Radius.circular(20),
                 ),
-                child: CachedNetworkImage(
+                child: MemoryPhoto(
                   imageUrl: memory.imageUrl,
-                  height: index.isEven ? 200 : 160, // Staggered heights
+                  height: index.isEven ? 200 : 160,
                   width: double.infinity,
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
+                  placeholder: Container(
                     height: index.isEven ? 200 : 160,
                     color: Colors.grey[200],
                     child: const Center(
                       child: CircularProgressIndicator(),
                     ),
                   ),
-                  errorWidget: (context, url, error) => Container(
+                  errorWidget: Container(
                     height: index.isEven ? 200 : 160,
                     color: Colors.grey[200],
                     child: const Icon(Icons.error, color: Colors.grey),
