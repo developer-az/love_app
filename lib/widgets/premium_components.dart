@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:my_special_app/theme/app_theme.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 
 /// Premium reusable components for the app
 class PremiumComponents {
@@ -72,7 +71,8 @@ class PremiumComponents {
               Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: (color ?? AppTheme.primaryColor).withValues(alpha: 0.1),
+                  color:
+                      (color ?? AppTheme.primaryColor).withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(8),
                 ),
                 child: Icon(
@@ -95,10 +95,7 @@ class PremiumComponents {
           ),
         ],
       ),
-    )
-        .animate()
-        .fadeIn(duration: const Duration(milliseconds: 300))
-        .slideY(begin: 0.2, end: 0);
+    );
   }
 
   /// Premium floating action button with animation
@@ -120,10 +117,7 @@ class PremiumComponents {
           size: 28,
         ),
       ),
-    )
-        .animate()
-        .scale(delay: const Duration(milliseconds: 500))
-        .fadeIn(duration: const Duration(milliseconds: 300));
+    );
   }
 
   /// Premium loading indicator
@@ -144,9 +138,7 @@ class PremiumComponents {
               strokeWidth: 3,
             ),
           ),
-        )
-            .animate(onPlay: (controller) => controller.repeat())
-            .rotate(duration: const Duration(seconds: 2)),
+        ),
         if (message != null) ...[
           const SizedBox(height: 16),
           Text(

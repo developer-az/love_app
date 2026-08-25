@@ -31,7 +31,7 @@ echo "📦 Installing dependencies..."
 flutter pub get
 
 echo "🔧 Building web app..."
-flutter build web --release --web-renderer html --base-href /
+flutter build web --release --web-renderer canvaskit --base-href /
 
 echo "✅ Build completed successfully!"
 echo "📁 Output directory: build/web"

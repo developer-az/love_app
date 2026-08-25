@@ -1,15 +1,27 @@
+import 'dart:ui' show PointerDeviceKind;
+
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
-import 'package:my_special_app/theme/app_theme.dart';
+import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
+import 'package:intl/intl.dart';
 import 'package:my_special_app/models/memory.dart';
-import 'package:my_special_app/services/memory_service.dart';
 import 'package:my_special_app/screens/add_memory_screen.dart';
 import 'package:my_special_app/screens/memory_detail_screen.dart';
 import 'package:my_special_app/screens/stats_screen.dart';
+import 'package:my_special_app/services/memory_service.dart';
+import 'package:my_special_app/theme/app_theme.dart';
 import 'package:my_special_app/widgets/memory_photo.dart';
 import 'package:my_special_app/widgets/premium_components.dart';
-import 'package:flutter_staggered_grid_view/flutter_staggered_grid_view.dart';
-import 'package:flutter_animate/flutter_animate.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+
+class AppScrollBehavior extends MaterialScrollBehavior {
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.stylus,
+        PointerDeviceKind.trackpad,
+      };
+}
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -29,6 +41,7 @@ class MySpecialApp extends StatelessWidget {
       title: 'Cherished Memories',
       theme: AppTheme.lightTheme,
       debugShowCheckedModeBanner: false,
+      scrollBehavior: AppScrollBehavior(),
       home: HomeScreen(memoryService: memoryService),
     );
   }
@@ -43,7 +56,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
+class _HomeScreenState extends State<HomeScreen> {
   final TextEditingController _searchController = TextEditingController();
   List<Memory> _memories = [];
   List<Memory> _filteredMemories = [];
@@ -92,7 +105,6 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      extendBodyBehindAppBar: true,
       appBar: AppBar(
         title: Text(
           'Cherished Memories',
@@ -155,6 +167,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ),
         child: SafeArea(
+          top: false,
           child: Column(
             children: [
               // Search Bar
@@ -163,7 +176,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                   hintText: 'Search memories...',
                   controller: _searchController,
                   onChanged: _filterMemories,
-                ).animate().fadeIn(delay: const Duration(milliseconds: 200)),
+                ),
 
               // Content
               Expanded(
@@ -177,40 +190,33 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ),
       ),
-      floatingActionButton: Container(
-        decoration: AppTheme.gradientButtonDecoration,
-        child: FloatingActionButton(
-          onPressed: () async {
-            await Navigator.push(
-              context,
-              PageRouteBuilder(
-                pageBuilder: (context, animation, secondaryAnimation) =>
-                    AddMemoryScreen(memoryService: widget.memoryService),
-                transitionsBuilder:
-                    (context, animation, secondaryAnimation, child) {
-                  return SlideTransition(
-                    position: animation.drive(
-                      Tween(begin: const Offset(0.0, 1.0), end: Offset.zero),
-                    ),
-                    child: child,
-                  );
-                },
-              ),
-            );
-            if (mounted) _loadMemories();
-          },
-          backgroundColor: Colors.transparent,
-          elevation: 0,
-          child: const Icon(
-            Icons.add,
-            color: Colors.white,
-            size: 28,
+      floatingActionButton: Material(
+        elevation: 6,
+        shape: const CircleBorder(),
+        shadowColor: AppTheme.primaryColor.withValues(alpha: 0.4),
+        child: Ink(
+          decoration: const BoxDecoration(
+            shape: BoxShape.circle,
+            gradient: AppTheme.primaryGradient,
+          ),
+          child: IconButton(
+            tooltip: 'Add memory',
+            onPressed: () async {
+              await Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (context) =>
+                      AddMemoryScreen(memoryService: widget.memoryService),
+                ),
+              );
+              if (mounted) _loadMemories();
+            },
+            iconSize: 28,
+            padding: const EdgeInsets.all(16),
+            icon: const Icon(Icons.add, color: Colors.white),
           ),
         ),
-      )
-          .animate()
-          .scale(delay: const Duration(milliseconds: 500))
-          .fadeIn(duration: const Duration(milliseconds: 300)),
+      ),
     );
   }
 
@@ -272,9 +278,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
           ),
         ],
       ),
-    )
-        .animate(onPlay: (controller) => controller.repeat())
-        .shimmer(duration: const Duration(milliseconds: 1500));
+    );
   }
 
   Widget _buildEmptyState() {
@@ -294,22 +298,18 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
               size: 60,
               color: Colors.white,
             ),
-          )
-              .animate()
-              .scale(duration: const Duration(milliseconds: 600))
-              .then()
-              .shimmer(duration: const Duration(milliseconds: 1000)),
+          ),
           const SizedBox(height: 32),
           Text(
             'No memories yet',
             style: AppTheme.headingStyle,
-          ).animate().fadeIn(delay: const Duration(milliseconds: 300)),
+          ),
           const SizedBox(height: 12),
           Text(
             'Start capturing your special moments',
             style: AppTheme.captionStyle,
             textAlign: TextAlign.center,
-          ).animate().fadeIn(delay: const Duration(milliseconds: 500)),
+          ),
           const SizedBox(height: 32),
           Container(
             decoration: AppTheme.gradientButtonDecoration,
@@ -339,7 +339,7 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
               ),
             ),
-          ).animate().fadeIn(delay: const Duration(milliseconds: 700)),
+          ),
         ],
       ),
     );
@@ -379,43 +379,42 @@ class _HomeScreenState extends State<HomeScreen> with TickerProviderStateMixin {
             ),
           ],
         ),
-      ).animate().fadeIn();
+      );
     }
 
     return RefreshIndicator(
       onRefresh: _loadMemories,
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: MasonryGridView.count(
-          crossAxisCount: 2,
-          crossAxisSpacing: 16,
-          mainAxisSpacing: 16,
-          itemCount: displayMemories.length,
-          itemBuilder: (context, index) {
-            final memory = displayMemories[index];
-            return PremiumMemoryCard(
-              memory: memory,
-              index: index,
-              onTap: () async {
-                await Navigator.push(
-                  context,
-                  PageRouteBuilder(
-                    pageBuilder: (context, animation, secondaryAnimation) =>
-                        MemoryDetailScreen(
-                      memory: memory,
-                      memoryService: widget.memoryService,
-                    ),
-                    transitionsBuilder:
-                        (context, animation, secondaryAnimation, child) {
-                      return FadeTransition(opacity: animation, child: child);
-                    },
+      child: MasonryGridView.count(
+        padding: const EdgeInsets.fromLTRB(16, 8, 16, 96),
+        crossAxisCount: 2,
+        crossAxisSpacing: 16,
+        mainAxisSpacing: 16,
+        itemCount: displayMemories.length,
+        itemBuilder: (context, index) {
+          final memory = displayMemories[index];
+          return PremiumMemoryCard(
+            key: ValueKey(memory.id),
+            memory: memory,
+            index: index,
+            onTap: () async {
+              await Navigator.push(
+                context,
+                PageRouteBuilder(
+                  pageBuilder: (context, animation, secondaryAnimation) =>
+                      MemoryDetailScreen(
+                    memory: memory,
+                    memoryService: widget.memoryService,
                   ),
-                );
-                if (mounted) _loadMemories();
-              },
-            );
-          },
-        ),
+                  transitionsBuilder:
+                      (context, animation, secondaryAnimation, child) {
+                    return FadeTransition(opacity: animation, child: child);
+                  },
+                ),
+              );
+              if (mounted) _loadMemories();
+            },
+          );
+        },
       ),
     );
   }
@@ -437,18 +436,18 @@ class PremiumMemoryCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Hero(
       tag: 'memory-${memory.id}',
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          decoration: AppTheme.cardDecoration,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              ClipRRect(
-                borderRadius: const BorderRadius.vertical(
-                  top: Radius.circular(20),
-                ),
-                child: MemoryPhoto(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(20),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: onTap,
+          child: Ink(
+            decoration: AppTheme.cardDecoration,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                MemoryPhoto(
                   imageUrl: memory.imageUrl,
                   height: index.isEven ? 200 : 160,
                   width: double.infinity,
@@ -457,71 +456,75 @@ class PremiumMemoryCard extends StatelessWidget {
                     height: index.isEven ? 200 : 160,
                     color: Colors.grey[200],
                     child: const Center(
-                      child: CircularProgressIndicator(),
+                      child: CircularProgressIndicator(strokeWidth: 2),
                     ),
                   ),
                   errorWidget: Container(
                     height: index.isEven ? 200 : 160,
-                    color: Colors.grey[200],
-                    child: const Icon(Icons.error, color: Colors.grey),
+                    color: const Color(0xFFF3F4F6),
+                    child: Icon(
+                      Icons.favorite_outline,
+                      color: AppTheme.primaryColor.withValues(alpha: 0.5),
+                    ),
                   ),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      memory.title,
-                      style: AppTheme.subheadingStyle.copyWith(fontSize: 18),
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    const SizedBox(height: 8),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.calendar_today,
-                          size: 16,
-                          color: AppTheme.textSecondary,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          '${memory.date.day}/${memory.date.month}/${memory.date.year}',
-                          style: AppTheme.captionStyle,
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    Row(
-                      children: [
-                        Icon(
-                          Icons.location_on,
-                          size: 16,
-                          color: AppTheme.textSecondary,
-                        ),
-                        const SizedBox(width: 4),
-                        Expanded(
-                          child: Text(
-                            memory.location,
-                            style: AppTheme.captionStyle,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                Padding(
+                  padding: const EdgeInsets.all(14),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        memory.title,
+                        style: AppTheme.subheadingStyle.copyWith(fontSize: 16),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 8),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.calendar_today,
+                            size: 14,
+                            color: AppTheme.textSecondary,
                           ),
-                        ),
-                      ],
-                    ),
-                  ],
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              DateFormat('MMM d, yyyy').format(memory.date),
+                              style: AppTheme.captionStyle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 4),
+                      Row(
+                        children: [
+                          Icon(
+                            Icons.location_on,
+                            size: 14,
+                            color: AppTheme.textSecondary,
+                          ),
+                          const SizedBox(width: 4),
+                          Expanded(
+                            child: Text(
+                              memory.location,
+                              style: AppTheme.captionStyle,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    )
-        .animate(delay: Duration(milliseconds: 100 * index))
-        .fadeIn(duration: const Duration(milliseconds: 300))
-        .slideX(begin: 0.2, end: 0);
+    );
   }
 }

@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'package:my_special_app/models/memory.dart';
 import 'package:my_special_app/screens/add_memory_screen.dart';
@@ -170,8 +169,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                   children: [
                     Text(
                       _memory.title,
-                      style: AppTheme.headingStyle.copyWith(fontSize: 32),
-                    ).animate().fadeIn().slideY(begin: 0.3, end: 0),
+                      style: AppTheme.headingStyle.copyWith(fontSize: 28),
+                    ),
                     const SizedBox(height: 24),
                     Container(
                       padding: const EdgeInsets.all(20),
@@ -202,18 +201,12 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                           ),
                         ],
                       ),
-                    )
-                        .animate(delay: const Duration(milliseconds: 200))
-                        .fadeIn()
-                        .slideY(begin: 0.3, end: 0),
+                    ),
                     const SizedBox(height: 32),
                     Text(
                       'Story',
                       style: AppTheme.titleStyle.copyWith(fontSize: 22),
-                    )
-                        .animate(delay: const Duration(milliseconds: 300))
-                        .fadeIn()
-                        .slideY(begin: 0.3, end: 0),
+                    ),
                     const SizedBox(height: 16),
                     Container(
                       width: double.infinity,
@@ -232,10 +225,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                           fontSize: 17,
                         ),
                       ),
-                    )
-                        .animate(delay: const Duration(milliseconds: 400))
-                        .fadeIn()
-                        .slideY(begin: 0.3, end: 0),
+                    ),
                     const SizedBox(height: 32),
                     Row(
                       children: [
@@ -279,10 +269,7 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
                           ),
                         ),
                       ],
-                    )
-                        .animate(delay: const Duration(milliseconds: 500))
-                        .fadeIn()
-                        .slideY(begin: 0.3, end: 0),
+                    ),
                     const SizedBox(height: 32),
                   ],
                 ),

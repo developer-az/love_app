@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import 'package:intl/intl.dart';
 import 'package:my_special_app/models/memory.dart';
 import 'package:my_special_app/services/memory_service.dart';
@@ -117,6 +116,11 @@ class _StatsScreenState extends State<StatsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: const Color(0xFFF8FAFC),
+      appBar: AppBar(
+        backgroundColor: const Color(0xFFF8FAFC),
+        title: const Text('Memory Statistics'),
+      ),
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
@@ -128,53 +132,13 @@ class _StatsScreenState extends State<StatsScreen> {
             ],
           ),
         ),
-        child: SafeArea(
-          child: Column(
-            children: [
-              Container(
-                padding: const EdgeInsets.all(24),
-                child: Row(
-                  children: [
-                    Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(12),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.black.withValues(alpha: 0.1),
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: IconButton(
-                        onPressed: () => Navigator.pop(context),
-                        icon: const Icon(Icons.arrow_back),
-                        color: AppTheme.textColor,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: Text(
-                        'Memory Statistics',
-                        style: AppTheme.titleStyle,
-                      ),
-                    ),
-                  ],
+        child: _isLoading
+            ? Center(
+                child: PremiumComponents.loadingIndicator(
+                  message: 'Loading your memory insights...',
                 ),
-              ).animate().fadeIn().slideY(begin: -0.3, end: 0),
-              Expanded(
-                child: _isLoading
-                    ? Center(
-                        child: PremiumComponents.loadingIndicator(
-                          message: 'Loading your memory insights...',
-                        ),
-                      )
-                    : _buildStatsContent(),
-              ),
-            ],
-          ),
-        ),
+              )
+            : _buildStatsContent(),
       ),
     );
   }
@@ -312,10 +276,7 @@ class _StatsScreenState extends State<StatsScreen> {
                   ],
                 ],
               ),
-            )
-                .animate(delay: const Duration(milliseconds: 200))
-                .fadeIn()
-                .slideY(begin: 0.3, end: 0),
+            ),
           ],
           const SizedBox(height: 32),
           if (topLocations.isNotEmpty) ...[
@@ -354,10 +315,7 @@ class _StatsScreenState extends State<StatsScreen> {
                 _buildTimelineVisualization(),
               ],
             ),
-          )
-              .animate(delay: const Duration(milliseconds: 400))
-              .fadeIn()
-              .slideY(begin: 0.3, end: 0),
+          ),
           const SizedBox(height: 32),
         ],
       ),
@@ -417,10 +375,7 @@ class _StatsScreenState extends State<StatsScreen> {
           ),
         ],
       ),
-    )
-        .animate(delay: Duration(milliseconds: 100 * location.value))
-        .fadeIn()
-        .slideX(begin: 0.3, end: 0);
+    );
   }
 
   Widget _buildTimelineVisualization() {
