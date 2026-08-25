@@ -1,5 +1,6 @@
 import 'dart:ui' show PointerDeviceKind;
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
@@ -10,9 +11,11 @@ import 'package:my_special_app/screens/stats_screen.dart';
 import 'package:my_special_app/services/memory_service.dart';
 import 'package:my_special_app/state/memory_controller.dart';
 import 'package:my_special_app/theme/app_theme.dart';
+import 'package:my_special_app/utils/app_animations.dart';
 import 'package:my_special_app/utils/app_bootstrap.dart';
 import 'package:my_special_app/utils/haptics.dart';
 import 'package:my_special_app/widgets/memory_feed.dart';
+import 'package:my_special_app/widgets/motion.dart';
 import 'package:my_special_app/widgets/premium_components.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
@@ -24,6 +27,23 @@ class AppScrollBehavior extends MaterialScrollBehavior {
         PointerDeviceKind.stylus,
         PointerDeviceKind.trackpad,
       };
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) {
+    return const BouncingScrollPhysics(
+      parent: AlwaysScrollableScrollPhysics(),
+    );
+  }
+
+  @override
+  Widget buildOverscrollIndicator(
+    BuildContext context,
+    Widget child,
+    ScrollableDetails details,
+  ) {
+    if (kIsWeb) return child;
+    return super.buildOverscrollIndicator(context, child, details);
+  }
 }
 
 void main() async {
@@ -81,6 +101,8 @@ class _MySpecialAppState extends State<MySpecialApp>
             theme: AppTheme.lightTheme,
             darkTheme: AppTheme.darkTheme,
             themeMode: themeMode,
+            themeAnimationDuration: AppAnimations.medium,
+            themeAnimationCurve: AppAnimations.inCurve,
             debugShowCheckedModeBanner: false,
             restorationScopeId: 'cherished_memories',
             scrollBehavior: AppScrollBehavior(),
@@ -116,7 +138,7 @@ class _HomeScreenState extends State<HomeScreen> {
   final FocusNode _searchFocus = FocusNode();
   final FocusNode _shortcutsFocus = FocusNode();
   final ScrollController _scrollController = ScrollController();
-  bool _showFab = true;
+  final ValueNotifier<bool> _fabVisible = ValueNotifier(true);
 
   MemoryController get _controller => MemoryScope.of(context);
 
@@ -126,6 +148,7 @@ class _HomeScreenState extends State<HomeScreen> {
     _searchFocus.dispose();
     _shortcutsFocus.dispose();
     _scrollController.dispose();
+    _fabVisible.dispose();
     super.dispose();
   }
 
@@ -133,10 +156,7 @@ class _HomeScreenState extends State<HomeScreen> {
     lightHaptic();
     await Navigator.push(
       context,
-      MaterialPageRoute(
-        builder: (context) =>
-            AddMemoryScreen(memoryService: _controller.service),
-      ),
+      fadeRoute(AddMemoryScreen(memoryService: _controller.service)),
     );
     if (mounted) await _controller.load();
   }
@@ -144,8 +164,8 @@ class _HomeScreenState extends State<HomeScreen> {
   Future<void> _openMemory(Memory memory) async {
     final deleted = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (context) => MemoryDetailScreen(
+      fadeRoute(
+        MemoryDetailScreen(
           memory: memory,
           memoryService: _controller.service,
         ),
@@ -211,10 +231,16 @@ class _HomeScreenState extends State<HomeScreen> {
   }
 
   bool _onScroll(UserScrollNotification notification) {
-    if (notification.direction == ScrollDirection.reverse && _showFab) {
-      setState(() => _showFab = false);
-    } else if (notification.direction == ScrollDirection.forward && !_showFab) {
-      setState(() => _showFab = true);
+    if (notification.depth != 0) return false;
+    if (notification.metrics.axis != Axis.vertical) return false;
+    if (notification.metrics.pixels <= 0) {
+      if (!_fabVisible.value) _fabVisible.value = true;
+      return false;
+    }
+    if (notification.direction == ScrollDirection.reverse) {
+      if (_fabVisible.value) _fabVisible.value = false;
+    } else if (notification.direction == ScrollDirection.forward) {
+      if (!_fabVisible.value) _fabVisible.value = true;
     }
     return false;
   }
@@ -264,7 +290,10 @@ class _HomeScreenState extends State<HomeScreen> {
                   IconButton(
                     tooltip: _themeTooltip,
                     onPressed: _controller.cycleThemeMode,
-                    icon: Icon(_themeIcon),
+                    icon: FadeSwitcher(
+                      duration: AppAnimations.fast,
+                      child: Icon(_themeIcon, key: ValueKey(_themeIcon)),
+                    ),
                   ),
                   IconButton(
                     tooltip: _controller.layout == MemoryLayout.grid
@@ -278,10 +307,14 @@ class _HomeScreenState extends State<HomeScreen> {
                             : MemoryLayout.grid,
                       );
                     },
-                    icon: Icon(
-                      _controller.layout == MemoryLayout.grid
-                          ? Icons.view_agenda_outlined
-                          : Icons.grid_view_outlined,
+                    icon: FadeSwitcher(
+                      duration: AppAnimations.fast,
+                      child: Icon(
+                        _controller.layout == MemoryLayout.grid
+                            ? Icons.view_agenda_outlined
+                            : Icons.grid_view_outlined,
+                        key: ValueKey(_controller.layout),
+                      ),
                     ),
                   ),
                   PopupMenuButton<MemorySort>(
@@ -316,10 +349,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(
-                          builder: (context) => StatsScreen(
-                            memoryService: _controller.service,
-                          ),
+                        fadeRoute(
+                          StatsScreen(memoryService: _controller.service),
                         ),
                       );
                     },
@@ -340,34 +371,61 @@ class _HomeScreenState extends State<HomeScreen> {
                         onChanged: _controller.setSearchQuery,
                       ),
                     Expanded(
-                      child: _controller.isLoading
-                          ? const Center(child: CircularProgressIndicator())
-                          : _controller.memories.isEmpty
-                              ? _EmptyMemoriesState(onAdd: _openAddMemory)
-                              : MemoriesBody(
-                                  controller: _controller,
-                                  scrollController: _scrollController,
-                                  onOpen: _openMemory,
-                                  onFavorite: (memory) async {
-                                    lightHaptic();
-                                    await _controller.toggleFavorite(memory);
-                                  },
-                                  onDelete: _deleteMemory,
-                                ),
+                      child: FadeSwitcher(
+                        expand: true,
+                        child: KeyedSubtree(
+                          key: ValueKey(
+                            _controller.isLoading
+                                ? 'loading'
+                                : _controller.memories.isEmpty
+                                    ? 'empty'
+                                    : 'feed',
+                          ),
+                          child: _controller.isLoading
+                              ? const Center(child: CircularProgressIndicator())
+                              : _controller.memories.isEmpty
+                                  ? _EmptyMemoriesState(onAdd: _openAddMemory)
+                                  : MemoriesBody(
+                                      controller: _controller,
+                                      scrollController: _scrollController,
+                                      onOpen: _openMemory,
+                                      onFavorite: (memory) async {
+                                        lightHaptic();
+                                        await _controller
+                                            .toggleFavorite(memory);
+                                      },
+                                      onDelete: _deleteMemory,
+                                    ),
+                        ),
+                      ),
                     ),
                   ],
                 ),
               ),
-              floatingActionButton: AnimatedOpacity(
-                opacity: _showFab ? 1 : 0,
-                duration: const Duration(milliseconds: 180),
-                child: IgnorePointer(
-                  ignoring: !_showFab,
-                  child: FloatingActionButton(
-                    onPressed: _openAddMemory,
-                    tooltip: 'Add memory',
-                    child: const Icon(Icons.add),
-                  ),
+              floatingActionButton: ValueListenableBuilder<bool>(
+                valueListenable: _fabVisible,
+                builder: (context, show, child) {
+                  final duration =
+                      AppAnimations.of(context, AppAnimations.fast);
+                  return IgnorePointer(
+                    ignoring: !show,
+                    child: AnimatedScale(
+                      scale: show ? 1 : 0.86,
+                      duration: duration,
+                      curve: AppAnimations.inCurve,
+                      child: AnimatedOpacity(
+                        opacity: show ? 1 : 0,
+                        duration: duration,
+                        curve: AppAnimations.inCurve,
+                        child: child,
+                      ),
+                    ),
+                  );
+                },
+                child: FloatingActionButton(
+                  onPressed: _openAddMemory,
+                  tooltip: 'Add memory',
+                  child: const Icon(Icons.add),
                 ),
               ),
             ),

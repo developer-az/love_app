@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:my_special_app/utils/app_animations.dart';
 
 /// Brand tokens. Body copy uses the platform typeface — custom webfonts
 /// previously caused Safari text to paint twice.
@@ -129,12 +130,12 @@ class AppTheme {
       canvasColor: colorScheme.surface,
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: FadeUpwardsPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.macOS: FadeUpwardsPageTransitionsBuilder(),
-          TargetPlatform.windows: FadeUpwardsPageTransitionsBuilder(),
-          TargetPlatform.linux: FadeUpwardsPageTransitionsBuilder(),
-          TargetPlatform.fuchsia: FadeUpwardsPageTransitionsBuilder(),
+          TargetPlatform.android: FadePageTransitionsBuilder(),
+          TargetPlatform.iOS: FadePageTransitionsBuilder(),
+          TargetPlatform.macOS: FadePageTransitionsBuilder(),
+          TargetPlatform.windows: FadePageTransitionsBuilder(),
+          TargetPlatform.linux: FadePageTransitionsBuilder(),
+          TargetPlatform.fuchsia: FadePageTransitionsBuilder(),
         },
       ),
       appBarTheme: AppBarTheme(

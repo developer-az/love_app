@@ -2,6 +2,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:my_special_app/models/memory.dart';
 import 'package:my_special_app/state/memory_controller.dart';
+import 'package:my_special_app/utils/app_animations.dart';
 import 'package:my_special_app/utils/memory_dates.dart';
 import 'package:my_special_app/widgets/memory_card.dart';
 
@@ -183,6 +184,8 @@ class MemoryTimelineView extends StatelessWidget {
             child: Dismissible(
               key: ValueKey('dismiss-${memory.id}'),
               direction: DismissDirection.endToStart,
+              movementDuration: AppAnimations.medium,
+              resizeDuration: AppAnimations.fast,
               onDismissed: (_) => onDelete(memory),
               background: DecoratedBox(
                 decoration: BoxDecoration(

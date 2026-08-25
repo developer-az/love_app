@@ -5,9 +5,11 @@ import 'package:my_special_app/screens/add_memory_screen.dart';
 import 'package:my_special_app/services/memory_service.dart';
 import 'package:my_special_app/state/memory_controller.dart';
 import 'package:my_special_app/theme/app_theme.dart';
+import 'package:my_special_app/utils/app_animations.dart';
 import 'package:my_special_app/utils/haptics.dart';
 import 'package:my_special_app/utils/memory_dates.dart';
 import 'package:my_special_app/widgets/memory_photo.dart';
+import 'package:my_special_app/widgets/motion.dart';
 import 'package:photo_view/photo_view.dart';
 
 class MemoryDetailScreen extends StatefulWidget {
@@ -36,8 +38,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
   Future<void> _editMemory() async {
     final updated = await Navigator.push<bool>(
       context,
-      MaterialPageRoute(
-        builder: (context) => AddMemoryScreen(
+      fadeRoute(
+        AddMemoryScreen(
           memoryService: widget.memoryService,
           existingMemory: _memory,
         ),
@@ -279,7 +281,10 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
         color: Colors.black.withValues(alpha: 0.3),
         borderRadius: BorderRadius.circular(12),
         child: IconButton(
-          icon: Icon(icon, color: Colors.white),
+          icon: FadeSwitcher(
+            duration: AppAnimations.fast,
+            child: Icon(icon, key: ValueKey(icon), color: Colors.white),
+          ),
           tooltip: tooltip,
           onPressed: onPressed,
         ),
@@ -320,8 +325,8 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
 
     Navigator.push(
       context,
-      PageRouteBuilder(
-        pageBuilder: (context, animation, secondaryAnimation) => Scaffold(
+      fadeRoute(
+        Scaffold(
           backgroundColor: Colors.black,
           appBar: AppBar(
             backgroundColor: Colors.transparent,
@@ -333,9 +338,6 @@ class _MemoryDetailScreenState extends State<MemoryDetailScreen> {
             maxScale: PhotoViewComputedScale.covered * 2,
           ),
         ),
-        transitionsBuilder: (context, animation, secondaryAnimation, child) {
-          return FadeTransition(opacity: animation, child: child);
-        },
       ),
     );
   }
